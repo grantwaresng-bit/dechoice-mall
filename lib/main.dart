@@ -11,13 +11,19 @@ import 'screens/web_home_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables from the .env file
-  await dotenv.load(fileName: ".env");
+  // Only load local .env asset if it's not running on the web
+  if (!kIsWeb) {
+    await dotenv.load(fileName: ".env");
+  }
 
-  // Initialize Supabase using the environment variables
+  // Initialize Supabase using environment variables or safe fallbacks for web/production
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '',
-    publishableKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+    url: kIsWeb
+        ? const String.fromEnvironment('SUPABASE_URL', defaultValue: 'YOUR_SUPABASE_URL')
+        : (dotenv.env['SUPABASE_URL'] ?? ''),
+    publishableKey: kIsWeb
+        ? const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: 'YOUR_SUPABASE_ANON_KEY')
+        : (dotenv.env['SUPABASE_ANON_KEY'] ?? ''),
   );
 
   runApp(
