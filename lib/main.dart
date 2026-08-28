@@ -11,19 +11,23 @@ import 'screens/web_home_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Only load local .env asset if it's not running on the web
+  // Load local .env asset for mobile/local testing
   if (!kIsWeb) {
     await dotenv.load(fileName: ".env");
   }
 
-  // Initialize Supabase using environment variables or safe fallbacks for web/production
+  // Get Supabase credentials: Use Vercel build args on web, or .env locally
+  final supabaseUrl = kIsWeb
+      ? const String.fromEnvironment('SUPABASE_URL')
+      : (dotenv.env['SUPABASE_URL'] ?? '');
+
+  final supabaseKey = kIsWeb
+      ? const String.fromEnvironment('SUPABASE_ANON_KEY')
+      : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
+
   await Supabase.initialize(
-    url: kIsWeb
-        ? const String.fromEnvironment('SUPABASE_URL', defaultValue: 'YOUR_SUPABASE_URL')
-        : (dotenv.env['SUPABASE_URL'] ?? ''),
-    publishableKey: kIsWeb
-        ? const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: 'YOUR_SUPABASE_ANON_KEY')
-        : (dotenv.env['SUPABASE_ANON_KEY'] ?? ''),
+    url: supabaseUrl,
+    publishableKey: supabaseKey, // Updated from anonKey to publishableKey
   );
 
   runApp(
@@ -81,7 +85,6 @@ class DechoiceMallApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      // Automatically switch between the web luxury view and the mobile view
       home: kIsWeb ? const WebHomeScreen() : const HomeScreen(),
     );
   }
