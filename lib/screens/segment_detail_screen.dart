@@ -7,7 +7,7 @@ import '../services/supabase_service.dart';
 import '../widgets/custom_network_image.dart';
 import '../widgets/responsive_wrapper.dart';
 import 'cart_screen.dart';
-import 'special_offers_page.dart'; // Make sure this path matches where your SpecialOffersPage is located
+import 'special_offers_page.dart';
 
 class SegmentDetailScreen extends StatefulWidget {
   final String segmentId;
@@ -29,10 +29,43 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
   List<Map<String, dynamic>> _itemSearchResults = [];
   bool _isSearchingItems = false;
 
+  bool _isSegmentActive = true;
+  String? _segmentAvailabilityNote;
+  bool _isLoadingSegment = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSegmentStatus();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchSegmentStatus() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('segments')
+          .select('is_active, availability_note')
+          .eq('id', widget.segmentId)
+          .maybeSingle();
+
+      if (response != null && mounted) {
+        setState(() {
+          _isSegmentActive = response['is_active'] ?? true;
+          _segmentAvailabilityNote = response['availability_note'];
+          _isLoadingSegment = false;
+        });
+      } else {
+        setState(() => _isLoadingSegment = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingSegment = false);
+      debugPrint('Error fetching segment status: $e');
+    }
   }
 
   Future<void> _performItemSearch(String query) async {
@@ -54,7 +87,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     try {
       final response = await Supabase.instance.client
           .from('items')
-          .select('*, categories!inner(segment_id)')
+          .select('*, categories!inner(segment_id, is_active)')
           .eq('categories.segment_id', widget.segmentId)
           .ilike('name', '%$trimmed%')
           .limit(30);
@@ -99,8 +132,8 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
             Container(
               width: 5,
               height: 5,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF28C00),
+              decoration: BoxDecoration(
+                color: _isSegmentActive ? const Color(0xFFF28C00) : Colors.red,
                 shape: BoxShape.circle,
               ),
             ),
@@ -140,11 +173,47 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
           ),
         ],
       ),
-      body: ResponsiveLayoutWrapper(
+      body: _isLoadingSegment
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF28C00)))
+          : ResponsiveLayoutWrapper(
         maxWidth: 900,
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
+            // Closed Segment Warning Banner if inactive
+            if (!_isSegmentActive)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade200),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.red, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          'SECTION CURRENTLY CLOSED',
+                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1),
+                        ),
+                      ],
+                    ),
+                    if (_segmentAvailabilityNote != null && _segmentAvailabilityNote!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _segmentAvailabilityNote!,
+                        style: const TextStyle(color: Color(0xFF333333), fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
             // Auto-Sliding Special Offers Banner Widget
             SpecialOffersBanner(segmentId: widget.segmentId),
 
@@ -234,6 +303,9 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                   final itemName = item['name'] ?? '';
                   final itemPrice = (item['price'] as num? ?? 0).toDouble();
                   final itemImage = item['image_url'] ?? '';
+                  final categoryData = item['categories'];
+                  final bool isItemCategoryActive = categoryData == null || categoryData['is_active'] != false;
+                  final bool canOrder = _isSegmentActive && isItemCategoryActive;
 
                   return Container(
                     decoration: BoxDecoration(
@@ -245,12 +317,26 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                            child: CustomNetworkImage(
-                              imageUrl: itemImage,
-                              fit: BoxFit.cover,
-                            ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                child: CustomNetworkImage(
+                                  imageUrl: itemImage,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              if (!canOrder)
+                                Container(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'UNAVAILABLE',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                         Padding(
@@ -273,6 +359,30 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                               Consumer<CartProvider>(
                                 builder: (context, cart, child) {
                                   final quantity = cart.getQuantity(itemId);
+
+                                  if (!canOrder) {
+                                    return SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton(
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.grey,
+                                          side: const BorderSide(color: Colors.grey),
+                                          padding: const EdgeInsets.symmetric(vertical: 6),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                                        ),
+                                        onPressed: () {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('This item is currently closed/unavailable for orders.'),
+                                              duration: Duration(seconds: 1),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        },
+                                        child: const Text('CLOSED', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+                                      ),
+                                    );
+                                  }
 
                                   if (quantity == 0) {
                                     return SizedBox(
@@ -382,6 +492,9 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                     itemCount: categories.length,
                     itemBuilder: (context, index) {
                       final category = categories[index];
+                      final bool isCategoryActive = category['is_active'] ?? true;
+                      final String? catAvailabilityNote = category['availability_note'];
+
                       return GestureDetector(
                         onTap: () async {
                           final subCategories = await supabase
@@ -427,19 +540,52 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                                   imageUrl: category['image_url'] ?? '',
                                   fit: BoxFit.cover,
                                 ),
-                                Container(color: Colors.black.withValues(alpha: 0.3)),
+                                Container(
+                                  color: Colors.black.withValues(alpha: isCategoryActive ? 0.3 : 0.6),
+                                ),
+                                if (!isCategoryActive)
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                      child: const Text(
+                                        'CLOSED',
+                                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ),
                                 Center(
                                   child: Padding(
                                     padding: const EdgeInsets.all(8.0),
-                                    child: Text(
-                                      category['name'].toString().toUpperCase(),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        letterSpacing: 1.5,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          category['name'].toString().toUpperCase(),
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: isCategoryActive ? Colors.white : Colors.white70,
+                                            fontSize: 12,
+                                            letterSpacing: 1.5,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        if (!isCategoryActive && catAvailabilityNote != null && catAvailabilityNote.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            catAvailabilityNote,
+                                            textAlign: TextAlign.center,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.w500),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -549,7 +695,6 @@ class _SpecialOffersBannerState extends State<SpecialOffersBanner> {
               itemBuilder: (context, index) {
                 return GestureDetector(
                   onTap: () {
-                    // Navigate to the Special Offers Page when banner is tapped
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -636,6 +781,9 @@ class SubCategoriesScreen extends StatelessWidget {
               itemCount: subCategories.length,
               itemBuilder: (context, index) {
                 final subCat = subCategories[index];
+                final bool isSubActive = subCat['is_active'] ?? true;
+                final String? subNote = subCat['availability_note'];
+
                 return GestureDetector(
                   onTap: () => Navigator.push(
                     context,
@@ -660,19 +808,52 @@ class SubCategoriesScreen extends StatelessWidget {
                             imageUrl: subCat['image_url'] ?? '',
                             fit: BoxFit.cover,
                           ),
-                          Container(color: Colors.black.withValues(alpha: 0.3)),
+                          Container(
+                            color: Colors.black.withValues(alpha: isSubActive ? 0.3 : 0.6),
+                          ),
+                          if (!isSubActive)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                                child: const Text(
+                                  'CLOSED',
+                                  style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
                           Center(
                             child: Padding(
                               padding: const EdgeInsets.all(8.0),
-                              child: Text(
-                                subCat['name'].toString().toUpperCase(),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  letterSpacing: 1.5,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    subCat['name'].toString().toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: isSubActive ? Colors.white : Colors.white70,
+                                      fontSize: 12,
+                                      letterSpacing: 1.5,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (!isSubActive && subNote != null && subNote.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      subNote,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.w500),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           ),
@@ -691,7 +872,7 @@ class SubCategoriesScreen extends StatelessWidget {
 }
 
 // --- PRODUCTS SCREEN FOR A SPECIFIC CATEGORY ---
-class CategoryProductsScreen extends StatelessWidget {
+class CategoryProductsScreen extends StatefulWidget {
   final String categoryId;
   final String categoryName;
 
@@ -702,6 +883,44 @@ class CategoryProductsScreen extends StatelessWidget {
   });
 
   @override
+  State<CategoryProductsScreen> createState() => _CategoryProductsScreenState();
+}
+
+class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
+  bool _isCategoryActive = true;
+  String? _categoryAvailabilityNote;
+  bool _isLoadingCategory = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCategoryStatus();
+  }
+
+  Future<void> _fetchCategoryStatus() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('categories')
+          .select('is_active, availability_note')
+          .eq('id', widget.categoryId)
+          .maybeSingle();
+
+      if (response != null && mounted) {
+        setState(() {
+          _isCategoryActive = response['is_active'] ?? true;
+          _categoryAvailabilityNote = response['availability_note'];
+          _isLoadingCategory = false;
+        });
+      } else {
+        setState(() => _isLoadingCategory = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingCategory = false);
+      debugPrint('Error checking category status: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
 
@@ -709,7 +928,7 @@ class CategoryProductsScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(
-          categoryName.toUpperCase(),
+          widget.categoryName.toUpperCase(),
           style: const TextStyle(color: Color(0xFF1E1E1E), letterSpacing: 2, fontWeight: FontWeight.bold, fontSize: 14),
         ),
         backgroundColor: Colors.white,
@@ -717,138 +936,216 @@ class CategoryProductsScreen extends StatelessWidget {
         centerTitle: false,
         iconTheme: const IconThemeData(color: Color(0xFF1E1E1E)),
       ),
-      body: ResponsiveLayoutWrapper(
+      body: _isLoadingCategory
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF28C00)))
+          : ResponsiveLayoutWrapper(
         maxWidth: 900,
-        child: FutureBuilder<List<Map<String, dynamic>>>(
-          future: supabase
-              .from('items')
-              .select()
-              .eq('category_id', categoryId)
-              .order('name', ascending: true),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Color(0xFFF28C00)));
-            }
-            if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(
-                child: Text('No items available in this category yet.', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
-              );
-            }
-
-            final items = snapshot.data!;
-            return GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.75,
-              ),
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                final itemId = item['id'].toString();
-                final itemName = item['name'] ?? '';
-                final itemPrice = (item['price'] as num? ?? 0).toDouble();
-                final itemImage = item['image_url'] ?? '';
-
-                return Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                          child: CustomNetworkImage(
-                            imageUrl: itemImage,
-                            fit: BoxFit.cover,
-                          ),
+        child: Column(
+          children: [
+            if (!_isCategoryActive)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade200),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.red, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          'CATEGORY CURRENTLY CLOSED',
+                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1),
                         ),
+                      ],
+                    ),
+                    if (_categoryAvailabilityNote != null && _categoryAvailabilityNote!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _categoryAvailabilityNote!,
+                        style: const TextStyle(color: Color(0xFF333333), fontSize: 12),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              itemName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '₦$itemPrice',
-                              style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
-                            ),
-                            const SizedBox(height: 6),
-                            Consumer<CartProvider>(
-                              builder: (context, cart, child) {
-                                final quantity = cart.getQuantity(itemId);
+                    ],
+                  ],
+                ),
+              ),
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: supabase
+                    .from('items')
+                    .select()
+                    .eq('category_id', widget.categoryId)
+                    .order('name', ascending: true),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFFF28C00)));
+                  }
+                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(
+                      child: Text('No items available in this category yet.', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                    );
+                  }
 
-                                if (quantity == 0) {
-                                  return SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFF28C00),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 6),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                        elevation: 0,
+                  final items = snapshot.data!;
+                  return GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.75,
+                    ),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      final itemId = item['id'].toString();
+                      final itemName = item['name'] ?? '';
+                      final itemPrice = (item['price'] as num? ?? 0).toDouble();
+                      final itemImage = item['image_url'] ?? '';
+
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                    child: CustomNetworkImage(
+                                      imageUrl: itemImage,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  if (!_isCategoryActive)
+                                    Container(
+                                      color: Colors.black.withValues(alpha: 0.4),
+                                      alignment: Alignment.center,
+                                      child: const Text(
+                                        'UNAVAILABLE',
+                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
                                       ),
-                                      onPressed: () {
-                                        cart.addItem(itemId, itemName, itemPrice, itemImage);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('$itemName added to cart'),
-                                            duration: const Duration(seconds: 1),
-                                            backgroundColor: const Color(0xFF1E1E1E),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    itemName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '₦$itemPrice',
+                                    style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Consumer<CartProvider>(
+                                    builder: (context, cart, child) {
+                                      final quantity = cart.getQuantity(itemId);
+
+                                      if (!_isCategoryActive) {
+                                        return SizedBox(
+                                          width: double.infinity,
+                                          child: OutlinedButton(
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: Colors.grey,
+                                              side: const BorderSide(color: Colors.grey),
+                                              padding: const EdgeInsets.symmetric(vertical: 6),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                                            ),
+                                            onPressed: () {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('This category is currently closed for orders.'),
+                                                  duration: Duration(seconds: 1),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            },
+                                            child: const Text('CLOSED', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
                                           ),
                                         );
-                                      },
-                                      child: const Text('ADD', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
-                                    ),
-                                  );
-                                }
+                                      }
 
-                                return Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    IconButton(
-                                      constraints: const BoxConstraints(),
-                                      padding: EdgeInsets.zero,
-                                      icon: const Icon(Icons.remove_circle_outline, color: Color(0xFF1E1E1E), size: 18),
-                                      onPressed: () => cart.removeSingleItem(itemId),
-                                    ),
-                                    Text(
-                                      '$quantity',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E1E1E)),
-                                    ),
-                                    IconButton(
-                                      constraints: const BoxConstraints(),
-                                      padding: EdgeInsets.zero,
-                                      icon: const Icon(Icons.add_circle_outline, color: Color(0xFFF28C00), size: 18),
-                                      onPressed: () => cart.addItem(itemId, itemName, itemPrice, itemImage),
-                                    ),
-                                  ],
-                                );
-                              },
+                                      if (quantity == 0) {
+                                        return SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(0xFFF28C00),
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(vertical: 6),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                                              elevation: 0,
+                                            ),
+                                            onPressed: () {
+                                              cart.addItem(itemId, itemName, itemPrice, itemImage);
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('$itemName added to cart'),
+                                                  duration: const Duration(seconds: 1),
+                                                  backgroundColor: const Color(0xFF1E1E1E),
+                                                ),
+                                              );
+                                            },
+                                            child: const Text('ADD', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+                                          ),
+                                        );
+                                      }
+
+                                      return Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          IconButton(
+                                            constraints: const BoxConstraints(),
+                                            padding: EdgeInsets.zero,
+                                            icon: const Icon(Icons.remove_circle_outline, color: Color(0xFF1E1E1E), size: 18),
+                                            onPressed: () => cart.removeSingleItem(itemId),
+                                          ),
+                                          Text(
+                                            '$quantity',
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E1E1E)),
+                                          ),
+                                          IconButton(
+                                            constraints: const BoxConstraints(),
+                                            padding: EdgeInsets.zero,
+                                            icon: const Icon(Icons.add_circle_outline, color: Color(0xFFF28C00), size: 18),
+                                            onPressed: () => cart.addItem(itemId, itemName, itemPrice, itemImage),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

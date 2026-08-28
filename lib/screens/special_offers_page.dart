@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/cart_provider.dart';
 
 class SpecialOffersPage extends StatefulWidget {
-  const SpecialOffersPage({super.key});
+  final String? segmentId; // Optional segment filter if opened from a specific segment
+
+  const SpecialOffersPage({super.key, this.segmentId});
 
   @override
   State<SpecialOffersPage> createState() => _SpecialOffersPageState();
@@ -21,28 +24,25 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
 
   Future<void> _fetchSpecialOffers() async {
     try {
-      // TODO: Replace with your actual Supabase query fetching special offers/promos if needed
-      // e.g., final response = await Supabase.instance.client.from('products').select().eq('is_special_offer', true);
+      final supabase = Supabase.instance.client;
 
-      // Mock data for illustration
+      // Build query for special/promo items, joining category/segment info to check active statuses
+      var query = supabase
+          .from('items')
+          .select('*, categories(id, name, is_active, segment_id, segments(is_active))')
+          .eq('is_special_offer', true);
+
+      final response = await query;
+
+      if (!mounted) return;
+
       setState(() {
-        _specialItems = [
-          {
-            'id': 'offer_1',
-            'name': 'Family Milk 400g',
-            'price': 4500.0,
-            'image_url': 'https://images.unsplash.com/photo-1563636619-e9143da7973b?q=80&w=800&auto=format&fit=crop',
-          },
-          {
-            'id': 'offer_2',
-            'name': 'Jollof Rice & Chicken',
-            'price': 3500.0,
-            'image_url': 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=800&auto=format&fit=crop',
-          },
-        ];
+        _specialItems = List<Map<String, dynamic>>.from(response);
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('Error loading special offers: $e');
+      if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error loading special offers: $e')),
@@ -51,6 +51,24 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
   }
 
   void _addItemToCart(Map<String, dynamic> item) {
+    // Verify category and segment active status before adding
+    final category = item['categories'];
+    final segment = category != null ? category['segments'] : null;
+
+    final bool isCategoryActive = category == null || category['is_active'] != false;
+    final bool isSegmentActive = segment == null || segment['is_active'] != false;
+
+    if (!isCategoryActive || !isSegmentActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This special offer item is currently closed/unavailable.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
+
     final cart = Provider.of<CartProvider>(context, listen: false);
     final itemId = item['id'].toString();
     final name = item['name'] ?? 'Item';
@@ -114,9 +132,13 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
           ? const Center(child: CircularProgressIndicator(color: Colors.orange))
           : _specialItems.isEmpty
           ? const Center(
-        child: Text(
-          'No special offers available right now. Check back soon!',
-          style: TextStyle(fontSize: 13, color: Colors.grey),
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text(
+            'No special offers available right now. Check back soon!',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey),
+          ),
         ),
       )
           : SingleChildScrollView(
@@ -159,6 +181,14 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
                 final item = _specialItems[index];
                 final itemId = item['id'].toString();
                 final count = cart.getQuantity(itemId);
+                final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
+
+                // Check active state
+                final category = item['categories'];
+                final segment = category != null ? category['segments'] : null;
+                final bool isCategoryActive = category == null || category['is_active'] != false;
+                final bool isSegmentActive = segment == null || segment['is_active'] != false;
+                final bool isAvailable = isCategoryActive && isSegmentActive;
 
                 return Container(
                   decoration: BoxDecoration(
@@ -172,17 +202,31 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
                       Expanded(
                         child: ClipRRect(
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                          child: Container(
-                            color: Colors.grey.shade50,
-                            width: double.infinity,
-                            child: Image.network(
-                              item['image_url'],
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                              const Center(
-                                child: Icon(Icons.broken_image, size: 30, color: Colors.grey),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Container(
+                                color: Colors.grey.shade50,
+                                width: double.infinity,
+                                child: Image.network(
+                                  item['image_url'] ?? '',
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                  const Center(
+                                    child: Icon(Icons.broken_image, size: 30, color: Colors.grey),
+                                  ),
+                                ),
                               ),
-                            ),
+                              if (!isAvailable)
+                                Container(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'CLOSED',
+                                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
@@ -199,11 +243,33 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '₦${item['price'].toStringAsFixed(0)}',
+                              '₦${price.toStringAsFixed(0)}',
                               style: const TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 8),
-                            count == 0
+                            !isAvailable
+                                ? SizedBox(
+                              height: 28,
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('This section is currently closed for orders.'),
+                                      duration: Duration(seconds: 1),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Colors.grey),
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                ),
+                                child: const Text('CLOSED', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                              ),
+                            )
+                                : count == 0
                                 ? SizedBox(
                               height: 28,
                               width: double.infinity,

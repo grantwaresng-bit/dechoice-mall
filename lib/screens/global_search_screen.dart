@@ -31,9 +31,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     setState(() => _isLoading = true);
     try {
+      // Query items and join categories/segments to verify active status
       final response = await Supabase.instance.client
           .from('items')
-          .select()
+          .select('*, categories!inner(is_active, segment_id, segments!inner(is_active))')
           .ilike('name', '%$query%')
           .limit(20);
 
@@ -50,7 +51,28 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     }
   }
 
+  bool _isItemAvailable(Map<String, dynamic> item) {
+    final category = item['categories'];
+    final segment = category != null ? category['segments'] : null;
+    final bool isCategoryActive = category == null || category['is_active'] != false;
+    final bool isSegmentActive = segment == null || segment['is_active'] != false;
+    return isCategoryActive && isSegmentActive;
+  }
+
   void _showAddToCartDialog(BuildContext context, Map<String, dynamic> item) {
+    final bool available = _isItemAvailable(item);
+
+    if (!available) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This item is currently closed/unavailable for orders.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
+
     int quantity = 1;
     final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
 
@@ -68,7 +90,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.3,
-                  color: Color(0xFF1E1E1E), // Crisp dark charcoal title
+                  color: Color(0xFF1E1E1E),
                 ),
               ),
               content: Column(
@@ -134,7 +156,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       const Text('Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E1E1E))),
                       Text(
                         '₦${(price * quantity).toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF28C00), fontSize: 16), // Brand highlight for final total
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF28C00), fontSize: 16),
                       ),
                     ],
                   ),
@@ -147,7 +169,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF28C00), // Main CTA button
+                    backgroundColor: const Color(0xFFF28C00),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                     elevation: 0,
@@ -274,6 +296,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   Widget _buildResultTile(BuildContext context, Map<String, dynamic> item) {
+    final bool available = _isItemAvailable(item);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -285,29 +309,57 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         contentPadding: const EdgeInsets.all(8),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(2),
-          child: item['image_url'] != null
-              ? CustomNetworkImage(imageUrl: item['image_url'], width: 50, height: 50, fit: BoxFit.cover)
-              : Container(
-            width: 50,
-            height: 50,
-            color: const Color(0xFFF28C00).withValues(alpha: 0.1),
-            child: const Icon(Icons.shopping_bag_outlined, size: 20, color: Color(0xFFF28C00)),
+          child: Stack(
+            children: [
+              item['image_url'] != null
+                  ? CustomNetworkImage(imageUrl: item['image_url'], width: 50, height: 50, fit: BoxFit.cover)
+                  : Container(
+                width: 50,
+                height: 50,
+                color: const Color(0xFFF28C00).withValues(alpha: 0.1),
+                child: const Icon(Icons.shopping_bag_outlined, size: 20, color: Color(0xFFF28C00)),
+              ),
+              if (!available)
+                Container(
+                  width: 50,
+                  height: 50,
+                  color: Colors.black.withValues(alpha: 0.5),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'CLOSED',
+                    style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                  ),
+                ),
+            ],
           ),
         ),
         title: Text(
           item['name'] ?? '',
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.2, color: Color(0xFF1E1E1E)),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            letterSpacing: 0.2,
+            color: available ? const Color(0xFF1E1E1E) : Colors.grey,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4.0),
           child: Text(
-            '₦${item['price'] ?? '0.00'}',
-            style: const TextStyle(color: Color(0xFF666666), fontSize: 13, fontWeight: FontWeight.w500),
+            available ? '₦${item['price'] ?? '0.00'}' : 'Currently Unavailable',
+            style: TextStyle(
+              color: available ? const Color(0xFF666666) : Colors.red,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
-        trailing: const Icon(Icons.add_shopping_cart, size: 18, color: Color(0xFFF28C00)),
+        trailing: Icon(
+          available ? Icons.add_shopping_cart : Icons.block,
+          size: 18,
+          color: available ? const Color(0xFFF28C00) : Colors.grey,
+        ),
         onTap: () => _showAddToCartDialog(context, item),
       ),
     );

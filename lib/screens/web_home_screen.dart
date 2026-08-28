@@ -50,7 +50,26 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
     });
   }
 
+  bool _isItemAvailable(Map<String, dynamic> item) {
+    final category = item['categories'];
+    final segment = category != null ? category['segments'] : null;
+    final bool isCategoryActive = category == null || category['is_active'] != false;
+    final bool isSegmentActive = segment == null || segment['is_active'] != false;
+    return isCategoryActive && isSegmentActive;
+  }
+
   void _incrementCart(Map<String, dynamic> item) {
+    if (!_isItemAvailable(item)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This item or section is currently closed for orders.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
+
     final cart = Provider.of<CartProvider>(context, listen: false);
     final itemId = item['id'].toString();
     final name = item['name'] ?? 'Item';
@@ -114,7 +133,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
             ],
           ),
           actions: [
-            // "Collections" text button removed as requested
             // Search Icon navigates to GlobalSearchScreen
             IconButton(
               icon: const Icon(Icons.search, color: Colors.black, size: 20),
@@ -235,7 +253,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                 });
 
                 return MouseRegion(
-                  // Pause auto-slide when user hovers over the banner to read or interact
                   onEnter: (_) => _sliderTimer?.cancel(),
                   onExit: (_) => _startAutoSlide(slides.length),
                   child: SizedBox(
@@ -312,7 +329,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                             );
                           },
                         ),
-                        // Indicator Dots (Only show if multiple slides exist)
                         if (slides.length > 1)
                           Positioned(
                             bottom: 16,
@@ -354,7 +370,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   SizedBox(
                     height: 110,
                     child: FutureBuilder<List<Map<String, dynamic>>>(
-                      future: _supabase.from('segments').select().order('display_order', ascending: true),
+                      future: _supabase.from('segments').select().eq('is_active', true).order('display_order', ascending: true),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) {
                           return const Center(child: CircularProgressIndicator(color: Colors.orange));
@@ -507,10 +523,13 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   ),
                   const SizedBox(height: 30),
 
-                  // Fixed "ALL" vs Segment / Category Handling
+                  // Fixed "ALL" vs Segment / Category Handling with Active Filtering Joins
                   _selectedSegmentId == null
                       ? FutureBuilder<List<Map<String, dynamic>>>(
-                    future: _supabase.from('items').select().limit(50),
+                    future: _supabase
+                        .from('items')
+                        .select('*, categories!inner(id, name, is_active, segment_id, segments!inner(id, name, is_active))')
+                        .limit(50),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: Colors.orange)));
@@ -540,7 +559,11 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                     },
                   )
                       : FutureBuilder<List<Map<String, dynamic>>>(
-                    future: _supabase.from('categories').select().eq('segment_id', _selectedSegmentId!),
+                    future: _supabase
+                        .from('categories')
+                        .select('*, segments!inner(id, name, is_active)')
+                        .eq('segment_id', _selectedSegmentId!)
+                        .eq('is_active', true),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: Colors.orange)));
@@ -550,7 +573,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                       if (categories.isEmpty) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Center(child: Text('No categories available in this selection yet.', style: TextStyle(color: Colors.grey, fontSize: 13))),
+                          child: Center(child: Text('No active categories available in this selection yet.', style: TextStyle(color: Colors.grey, fontSize: 13))),
                         );
                       }
 
@@ -564,7 +587,10 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                           final catName = category['name'] ?? 'Category';
 
                           return FutureBuilder<List<Map<String, dynamic>>>(
-                            future: _supabase.from('items').select().eq('category_id', catId),
+                            future: _supabase
+                                .from('items')
+                                .select('*, categories!inner(id, name, is_active, segment_id, segments!inner(id, name, is_active))')
+                                .eq('category_id', catId),
                             builder: (context, catItemSnapshot) {
                               final catItems = catItemSnapshot.data ?? [];
                               if (catItems.isEmpty) return const SizedBox.shrink();
@@ -625,6 +651,8 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
     final cart = Provider.of<CartProvider>(context);
     final itemId = item['id'].toString();
     final count = cart.getQuantity(itemId);
+    final bool available = _isItemAvailable(item);
+    final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -638,12 +666,26 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
           Expanded(
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-              child: Container(
-                color: Colors.grey.shade50,
-                width: double.infinity,
-                child: item['image_url'] != null
-                    ? Image.network(item['image_url'], fit: BoxFit.cover)
-                    : const Center(child: Icon(Icons.image, color: Colors.grey, size: 20)),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    color: Colors.grey.shade50,
+                    width: double.infinity,
+                    child: item['image_url'] != null
+                        ? Image.network(item['image_url'], fit: BoxFit.cover)
+                        : const Center(child: Icon(Icons.image, color: Colors.grey, size: 20)),
+                  ),
+                  if (!available)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'CLOSED',
+                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -656,15 +698,41 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   item['name'] ?? 'Item',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: available ? Colors.black87 : Colors.grey,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '₦${item['price'] ?? '0.00'}',
-                  style: const TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+                  available ? '₦${price.toStringAsFixed(0)}' : 'Unavailable',
+                  style: TextStyle(color: available ? Colors.orange : Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                count == 0
+                !available
+                    ? SizedBox(
+                  height: 28,
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('This section is currently closed for orders.'),
+                          duration: Duration(seconds: 1),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.grey),
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    ),
+                    child: const Text('CLOSED', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                )
+                    : count == 0
                     ? SizedBox(
                   height: 28,
                   width: double.infinity,

@@ -37,9 +37,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     setState(() => _isLoading = true);
     try {
+      // Fetch matching items and join categories/segments to check active status if needed
       final response = await Supabase.instance.client
           .from('items')
-          .select()
+          .select('*, categories(id, name, is_active, availability_note)')
           .ilike('name', '%$query%')
           .limit(20);
 
@@ -57,6 +58,33 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   void _showAddToCartDialog(BuildContext context, Map<String, dynamic> item) {
+    // Check if category/segment is active if data exists
+    final category = item['categories'];
+    final bool isCategoryActive = category == null || category['is_active'] != false;
+    final String availabilityNote = category != null ? (category['availability_note'] ?? '') : '';
+
+    if (!isCategoryActive) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Store Section Closed', style: TextStyle(color: Colors.red, fontSize: 16)),
+          content: Text(
+            availabilityNote.isNotEmpty
+                ? 'This item is currently unavailable.\n\nNote: $availabilityNote'
+                : 'This section of the store is currently closed and not accepting orders.',
+            style: const TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK', style: TextStyle(color: Colors.orange)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     int quantity = 1;
     final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
 
@@ -208,6 +236,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         itemCount: _searchResults.length,
         itemBuilder: (context, index) {
           final item = _searchResults[index];
+          final category = item['categories'];
+          final bool isCategoryActive = category == null || category['is_active'] != false;
+
           return ListTile(
             leading: item['image_url'] != null
                 ? CustomNetworkImage(
@@ -218,8 +249,15 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
             )
                 : const Icon(Icons.store, size: 50, color: Colors.orange),
             title: Text(item['name'] ?? 'Dechoice Mall'),
-            subtitle: Text('₦${item['price'] ?? 0}'),
-            trailing: const Icon(Icons.add_shopping_cart, size: 20, color: Colors.orange),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('₦${item['price'] ?? 0}'),
+                if (!isCategoryActive)
+                  const Text('CLOSED / UNAVAILABLE', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            trailing: Icon(Icons.add_shopping_cart, size: 20, color: isCategoryActive ? Colors.orange : Colors.grey),
             onTap: () => _showAddToCartDialog(context, item),
           );
         },
@@ -377,18 +415,26 @@ class HomeScreen extends StatelessWidget {
                 }
 
                 final segment = segments[index - 1];
+                final bool isActive = segment['is_active'] ?? true;
+                final String? availabilityNote = segment['availability_note'];
                 final subtitleText = segment['subtitle'] ?? 'Tap to explore store & menu items';
 
                 return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SegmentDetailScreen(
-                        segmentId: segment['id'],
-                        segmentName: segment['name'],
+                  onTap: () {
+                    // Navigate anyway or show closed modal?
+                    // Usually, letting them view the segment detail handles items display restrictions,
+                    // but we can also block it right here or show a warning. Let's pass through
+                    // so they can see the closed/availability note on the detail screen too.
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SegmentDetailScreen(
+                          segmentId: segment['id'],
+                          segmentName: segment['name'],
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                   child: Container(
                     height: 140,
                     margin: const EdgeInsets.symmetric(vertical: 8),
@@ -417,11 +463,28 @@ class HomeScreen extends StatelessWidget {
                               end: Alignment.bottomCenter,
                               colors: [
                                 Colors.transparent,
-                                Colors.black.withValues(alpha: 0.65),
+                                Colors.black.withValues(alpha: isActive ? 0.65 : 0.8),
                               ],
                             ),
                           ),
                         ),
+                        // Closed Overlay Banner if inactive
+                        if (!isActive)
+                          Positioned(
+                            top: 12,
+                            right: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'CLOSED',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                              ),
+                            ),
+                          ),
                         Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Column(
@@ -430,18 +493,21 @@ class HomeScreen extends StatelessWidget {
                             children: [
                               Text(
                                 segment['name'],
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: isActive ? Colors.white : Colors.white70,
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                subtitleText,
-                                style: const TextStyle(
-                                  color: Colors.white70,
+                                !isActive && availabilityNote != null && availabilityNote.isNotEmpty
+                                    ? availabilityNote
+                                    : subtitleText,
+                                style: TextStyle(
+                                  color: !isActive ? Colors.redAccent.shade100 : Colors.white70,
                                   fontSize: 12,
+                                  fontWeight: !isActive ? FontWeight.w500 : FontWeight.normal,
                                 ),
                               ),
                             ],
