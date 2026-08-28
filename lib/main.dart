@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'config.dart';
 import 'providers/cart_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/web_home_screen.dart';
@@ -16,18 +17,10 @@ Future<void> main() async {
     await dotenv.load(fileName: ".env");
   }
 
-  // Get Supabase credentials: Use Vercel build args on web, or .env locally
-  final supabaseUrl = kIsWeb
-      ? const String.fromEnvironment('SUPABASE_URL')
-      : (dotenv.env['SUPABASE_URL'] ?? '');
-
-  final supabaseKey = kIsWeb
-      ? const String.fromEnvironment('SUPABASE_ANON_KEY')
-      : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
-
+  // Initialize Supabase using the centralized Config helper
   await Supabase.initialize(
-    url: supabaseUrl,
-    publishableKey: supabaseKey, // Updated from anonKey to publishableKey
+    url: Config.supabaseUrl,
+    publishableKey: Config.supabaseKey,
   );
 
   runApp(
