@@ -55,7 +55,8 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
     final segment = category != null ? category['segments'] : null;
     final bool isCategoryActive = category == null || category['is_active'] != false;
     final bool isSegmentActive = segment == null || segment['is_active'] != false;
-    return isCategoryActive && isSegmentActive;
+    final bool isItemAvailableFlag = item['is_available'] ?? true;
+    return isCategoryActive && isSegmentActive && isItemAvailableFlag;
   }
 
   void _incrementCart(Map<String, dynamic> item) {
@@ -102,7 +103,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
           backgroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
-          // Hamburger Menu Icon on the left
           leading: Builder(
             builder: (context) => IconButton(
               icon: const Icon(Icons.menu, color: Colors.black, size: 22),
@@ -133,7 +133,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
             ],
           ),
           actions: [
-            // Search Icon navigates to GlobalSearchScreen
             IconButton(
               icon: const Icon(Icons.search, color: Colors.black, size: 20),
               onPressed: () => Navigator.push(
@@ -141,7 +140,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                 MaterialPageRoute(builder: (_) => const GlobalSearchScreen()),
               ),
             ),
-            // Cart Icon with Live Badge
             IconButton(
               icon: Badge(
                 isLabelVisible: cart.itemCount > 0,
@@ -157,7 +155,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
           ],
         ),
       ),
-      // Sidebar Drawer
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -221,7 +218,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Dynamic Slider Hero Banner Section (Queries web_hero_content)
+            // 1. Dynamic Slider Hero Banner Section
             FutureBuilder<List<Map<String, dynamic>>>(
               future: _supabase
                   .from('web_hero_content')
@@ -238,7 +235,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
 
                 final slides = snapshot.data ?? [];
 
-                // Fallback default slide if table is empty
                 if (slides.isEmpty) {
                   slides.add({
                     'tagline': 'CRAFTED FOR THE EXTRAORDINARY',
@@ -356,7 +352,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
               },
             ),
 
-            // 2. Instagram-Style Stories / Segments Bar
+            // 2. Instagram-Style Stories / Segments Bar (Active Segments Only)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 24),
               child: Column(
@@ -380,7 +376,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                         return ListView(
                           scrollDirection: Axis.horizontal,
                           children: [
-                            // "ALL" Story Bubble
                             Padding(
                               padding: const EdgeInsets.only(right: 16.0),
                               child: GestureDetector(
@@ -411,7 +406,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                 ),
                               ),
                             ),
-                            // Dynamic Segment Story Bubbles
                             ...segments.map((segment) {
                               final segId = segment['id'];
                               final segName = segment['name'] ?? '';
@@ -523,12 +517,14 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   ),
                   const SizedBox(height: 30),
 
-                  // Fixed "ALL" vs Segment / Category Handling with Active Filtering Joins
+                  // Fixed handling with active filtering joins for items and active categories
                   _selectedSegmentId == null
                       ? FutureBuilder<List<Map<String, dynamic>>>(
                     future: _supabase
                         .from('items')
                         .select('*, categories!inner(id, name, is_active, segment_id, segments!inner(id, name, is_active))')
+                        .eq('categories.is_active', true)
+                        .eq('categories.segments.is_active', true)
                         .limit(50),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -547,7 +543,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                         physics: const NeverScrollableScrollPhysics(),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: isDesktop ? 5 : 2,
-                          childAspectRatio: 0.7,
+                          childAspectRatio: 0.65, // Adjusted slightly to accommodate size/age label if present
                           crossAxisSpacing: 14,
                           mainAxisSpacing: 20,
                         ),
@@ -563,7 +559,8 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                         .from('categories')
                         .select('*, segments!inner(id, name, is_active)')
                         .eq('segment_id', _selectedSegmentId!)
-                        .eq('is_active', true),
+                        .eq('is_active', true)
+                        .eq('segments.is_active', true),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: Colors.orange)));
@@ -608,7 +605,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                     physics: const NeverScrollableScrollPhysics(),
                                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                       crossAxisCount: isDesktop ? 5 : 2,
-                                      childAspectRatio: 0.7,
+                                      childAspectRatio: 0.65,
                                       crossAxisSpacing: 14,
                                       mainAxisSpacing: 20,
                                     ),
@@ -653,6 +650,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
     final count = cart.getQuantity(itemId);
     final bool available = _isItemAvailable(item);
     final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
+    final String? sizesOrAges = item['sizes_or_ages'];
 
     return Container(
       decoration: BoxDecoration(
@@ -698,73 +696,64 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   item['name'] ?? 'Item',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                    color: available ? Colors.black87 : Colors.grey,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Colors.black87, height: 1.2),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
-                  available ? '₦${price.toStringAsFixed(0)}' : 'Unavailable',
-                  style: TextStyle(color: available ? Colors.orange : Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                  '₦${price.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange),
                 ),
+                if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Size/Age: $sizesOrAges',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500),
+                  ),
+                ],
                 const SizedBox(height: 8),
-                !available
+                available
+                    ? (count == 0
                     ? SizedBox(
-                  height: 28,
                   width: double.infinity,
+                  height: 28,
                   child: OutlinedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('This section is currently closed for orders.'),
-                          duration: Duration(seconds: 1),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    },
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.grey),
+                      foregroundColor: Colors.orange,
+                      side: const BorderSide(color: Colors.orange, width: 1),
                       padding: EdgeInsets.zero,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                     ),
-                    child: const Text('CLOSED', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                )
-                    : count == 0
-                    ? SizedBox(
-                  height: 28,
-                  width: double.infinity,
-                  child: OutlinedButton(
                     onPressed: () => _incrementCart(item),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.orange),
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    ),
-                    child: const Text('Add to Cart', style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                    child: const Text('Add to Cart', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 )
-                    : Container(
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      InkWell(
-                        onTap: () => _decrementCart(itemId),
-                        child: const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Text('-', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange))),
-                      ),
-                      Text('$count', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      InkWell(
-                        onTap: () => _incrementCart(item),
-                        child: const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Text('+', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange))),
-                      ),
-                    ],
+                    : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.remove_circle_outline, size: 18, color: Colors.orange),
+                      onPressed: () => _decrementCart(itemId),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Text('$count', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                    IconButton(
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.add_circle_outline, size: 18, color: Colors.orange),
+                      onPressed: () => _incrementCart(item),
+                    ),
+                  ],
+                ))
+                    : const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4.0),
+                    child: Text('Unavailable', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],

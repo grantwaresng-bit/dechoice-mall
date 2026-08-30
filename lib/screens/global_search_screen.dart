@@ -75,6 +75,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     int quantity = 1;
     final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
+    final String? sizesOrAges = item['sizes_or_ages'];
 
     showDialog(
       context: context,
@@ -117,6 +118,19 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       ),
                     ],
                   ),
+                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Size/Age:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                        Text(
+                          sizesOrAges,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E1E1E)),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -297,6 +311,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Widget _buildResultTile(BuildContext context, Map<String, dynamic> item) {
     final bool available = _isItemAvailable(item);
+    final String? sizesOrAges = item['sizes_or_ages'];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -346,13 +361,29 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4.0),
-          child: Text(
-            available ? '₦${item['price'] ?? '0.00'}' : 'Currently Unavailable',
-            style: TextStyle(
-              color: available ? const Color(0xFF666666) : Colors.red,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                available ? '₦${item['price'] ?? '0.00'}' : 'Currently Unavailable',
+                style: TextStyle(
+                  color: available ? const Color(0xFF666666) : Colors.red,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'Size/Age: $sizesOrAges',
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         trailing: Icon(

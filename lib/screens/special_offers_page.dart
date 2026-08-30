@@ -172,7 +172,7 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: isDesktop ? 5 : 2,
-                childAspectRatio: 0.7,
+                childAspectRatio: 0.65, // Adjusted slightly to fit size/age text nicely
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 20,
               ),
@@ -182,6 +182,7 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
                 final itemId = item['id'].toString();
                 final count = cart.getQuantity(itemId);
                 final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
+                final String? sizesOrAges = item['sizes_or_ages'];
 
                 // Check active state
                 final category = item['categories'];
@@ -246,6 +247,15 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
                               '₦${price.toStringAsFixed(0)}',
                               style: const TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
                             ),
+                            if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Size/Age: $sizesOrAges',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500),
+                              ),
+                            ],
                             const SizedBox(height: 8),
                             !isAvailable
                                 ? SizedBox(

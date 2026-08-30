@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,11 +23,20 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = false;
+  Timer? _debounce;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel(); // Changed from .dispose() to .cancel()
     super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _performSearch(query);
+    });
   }
 
   Future<void> _performSearch(String query) async {
@@ -37,11 +47,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Fetch matching items and join categories/segments to check active status if needed
+      // Fetch matching available items and join categories/segments to check active status
       final response = await Supabase.instance.client
           .from('items')
           .select('*, categories(id, name, is_active, availability_note)')
           .ilike('name', '%$query%')
+          .eq('is_available', true) // Only show available items in global search
           .limit(20);
 
       if (!mounted) return;
@@ -58,20 +69,21 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   void _showAddToCartDialog(BuildContext context, Map<String, dynamic> item) {
-    // Check if category/segment is active if data exists
     final category = item['categories'];
     final bool isCategoryActive = category == null || category['is_active'] != false;
     final String availabilityNote = category != null ? (category['availability_note'] ?? '') : '';
+    final bool isAvailable = item['is_available'] ?? true;
+    final String? sizesOrAges = item['sizes_or_ages'];
 
-    if (!isCategoryActive) {
+    if (!isCategoryActive || !isAvailable) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Store Section Closed', style: TextStyle(color: Colors.red, fontSize: 16)),
+          title: const Text('Item Unavailable', style: TextStyle(color: Colors.red, fontSize: 16)),
           content: Text(
             availabilityNote.isNotEmpty
                 ? 'This item is currently unavailable.\n\nNote: $availabilityNote'
-                : 'This section of the store is currently closed and not accepting orders.',
+                : 'This item or its store section is currently closed and not accepting orders.',
             style: const TextStyle(fontSize: 13),
           ),
           actions: [
@@ -115,6 +127,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       ),
                     ),
                   Text('Price: ₦${price.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.orange)),
+                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text('Sizes/Ages: $sizesOrAges', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: Colors.grey)),
+                  ],
                   const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -208,7 +224,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
             hintStyle: TextStyle(color: Colors.white70),
             border: InputBorder.none,
           ),
-          onChanged: _performSearch,
+          onChanged: _onSearchChanged,
         ),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
@@ -238,6 +254,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           final item = _searchResults[index];
           final category = item['categories'];
           final bool isCategoryActive = category == null || category['is_active'] != false;
+          final String? sizesOrAges = item['sizes_or_ages'];
 
           return ListTile(
             leading: item['image_url'] != null
@@ -253,11 +270,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('₦${item['price'] ?? 0}'),
+                if (sizesOrAges != null && sizesOrAges.isNotEmpty)
+                  Text('Sizes/Ages: $sizesOrAges', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                 if (!isCategoryActive)
                   const Text('CLOSED / UNAVAILABLE', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
               ],
             ),
-            trailing: Icon(Icons.add_shopping_cart, size: 20, color: isCategoryActive ? Colors.orange : Colors.grey),
+            trailing: const Icon(Icons.add_shopping_cart, size: 20, color: Colors.orange),
             onTap: () => _showAddToCartDialog(context, item),
           );
         },
@@ -421,10 +440,6 @@ class HomeScreen extends StatelessWidget {
 
                 return GestureDetector(
                   onTap: () {
-                    // Navigate anyway or show closed modal?
-                    // Usually, letting them view the segment detail handles items display restrictions,
-                    // but we can also block it right here or show a warning. Let's pass through
-                    // so they can see the closed/availability note on the detail screen too.
                     Navigator.push(
                       context,
                       MaterialPageRoute(

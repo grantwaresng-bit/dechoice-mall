@@ -104,6 +104,164 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     }
   }
 
+  void _showAddToCartDialog(BuildContext context, Map<String, dynamic> item, bool canOrder) {
+    if (!canOrder) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This item is currently closed/unavailable for orders.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
+
+    int quantity = 1;
+    final double price = (item['price'] as num? ?? 0).toDouble();
+    final String itemId = item['id'].toString();
+    final String itemName = item['name'] ?? '';
+    final String itemImage = item['image_url'] ?? '';
+    final String? sizesOrAges = item['sizes_or_ages'];
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              title: Text(
+                itemName,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
+                  color: Color(0xFF1E1E1E),
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (itemImage.isNotEmpty)
+                    Container(
+                      height: 140,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: CustomNetworkImage(imageUrl: itemImage, fit: BoxFit.cover),
+                      ),
+                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Price:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                      Text(
+                        '₦${price.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E1E1E)),
+                      ),
+                    ],
+                  ),
+                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Size/Age:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                        Text(
+                          sizesOrAges,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E1E1E)),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Quantity:', style: TextStyle(fontSize: 13, color: Color(0xFF666666), fontWeight: FontWeight.w500)),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline, size: 22, color: Color(0xFF555555)),
+                            onPressed: () {
+                              if (quantity > 1) {
+                                setDialogState(() => quantity--);
+                              }
+                            },
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Text(
+                              '$quantity',
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E)),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline, size: 22, color: Color(0xFF555555)),
+                            onPressed: () {
+                              setDialogState(() => quantity++);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Color(0xFFDDDDDD), thickness: 1, height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E1E1E))),
+                      Text(
+                        '₦${(price * quantity).toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF28C00), fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF666666), fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF28C00),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                  onPressed: () {
+                    final cart = Provider.of<CartProvider>(context, listen: false);
+
+                    for (int i = 0; i < quantity; i++) {
+                      cart.addItem(itemId, itemName, price, itemImage);
+                    }
+
+                    Navigator.pop(dialogContext);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Added $quantity x $itemName to cart!'),
+                        backgroundColor: const Color(0xFF1E1E1E),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                  child: const Text('Add to Cart', style: TextStyle(fontSize: 12, letterSpacing: 0.5, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
@@ -180,7 +338,6 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            // Closed Segment Warning Banner if inactive
             if (!_isSegmentActive)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -214,10 +371,8 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                 ),
               ),
 
-            // Auto-Sliding Special Offers Banner Widget
             SpecialOffersBanner(segmentId: widget.segmentId),
 
-            // Segment-Specific Search Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: TextField(
@@ -256,7 +411,6 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
               ),
             ),
 
-            // CONDITIONAL VIEW: Search results vs Categories
             if (_searchQuery.isNotEmpty) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
@@ -294,97 +448,97 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                   crossAxisCount: 2,
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
-                  childAspectRatio: 0.75,
+                  childAspectRatio: 0.7,
                 ),
                 itemCount: _itemSearchResults.length,
                 itemBuilder: (context, index) {
                   final item = _itemSearchResults[index];
-                  final itemId = item['id'].toString();
                   final itemName = item['name'] ?? '';
                   final itemPrice = (item['price'] as num? ?? 0).toDouble();
                   final itemImage = item['image_url'] ?? '';
+                  final String? sizesOrAges = item['sizes_or_ages'];
                   final categoryData = item['categories'];
                   final bool isItemCategoryActive = categoryData == null || categoryData['is_active'] != false;
                   final bool canOrder = _isSegmentActive && isItemCategoryActive;
 
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              ClipRRect(
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                                child: CustomNetworkImage(
-                                  imageUrl: itemImage,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              if (!canOrder)
-                                Container(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  alignment: Alignment.center,
-                                  child: const Text(
-                                    'UNAVAILABLE',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                  return GestureDetector(
+                    onTap: () => _showAddToCartDialog(context, item, canOrder),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                  child: CustomNetworkImage(
+                                    imageUrl: itemImage,
+                                    fit: BoxFit.cover,
                                   ),
                                 ),
-                            ],
+                                if (!canOrder)
+                                  Container(
+                                    color: Colors.black.withValues(alpha: 0.4),
+                                    alignment: Alignment.center,
+                                    child: const Text(
+                                      'UNAVAILABLE',
+                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                itemName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '₦$itemPrice',
-                                style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
-                              ),
-                              const SizedBox(height: 6),
-                              Consumer<CartProvider>(
-                                builder: (context, cart, child) {
-                                  final quantity = cart.getQuantity(itemId);
-
-                                  if (!canOrder) {
-                                    return SizedBox(
-                                      width: double.infinity,
-                                      child: OutlinedButton(
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: Colors.grey,
-                                          side: const BorderSide(color: Colors.grey),
-                                          padding: const EdgeInsets.symmetric(vertical: 6),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  itemName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '₦$itemPrice',
+                                  style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                                if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Size/Age: $sizesOrAges',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                                const SizedBox(height: 6),
+                                Consumer<CartProvider>(
+                                  builder: (context, cart, child) {
+                                    if (!canOrder) {
+                                      return SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton(
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.grey,
+                                            side: const BorderSide(color: Colors.grey),
+                                            padding: const EdgeInsets.symmetric(vertical: 6),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                                          ),
+                                          onPressed: () => _showAddToCartDialog(context, item, canOrder),
+                                          child: const Text('CLOSED', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
                                         ),
-                                        onPressed: () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text('This item is currently closed/unavailable for orders.'),
-                                              duration: Duration(seconds: 1),
-                                              backgroundColor: Colors.red,
-                                            ),
-                                          );
-                                        },
-                                        child: const Text('CLOSED', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
-                                      ),
-                                    );
-                                  }
+                                      );
+                                    }
 
-                                  if (quantity == 0) {
                                     return SizedBox(
                                       width: double.infinity,
                                       child: ElevatedButton(
@@ -395,48 +549,17 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
                                           elevation: 0,
                                         ),
-                                        onPressed: () {
-                                          cart.addItem(itemId, itemName, itemPrice, itemImage);
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text('$itemName added to cart'),
-                                              duration: const Duration(seconds: 1),
-                                              backgroundColor: const Color(0xFF1E1E1E),
-                                            ),
-                                          );
-                                        },
+                                        onPressed: () => _showAddToCartDialog(context, item, canOrder),
                                         child: const Text('ADD', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
                                       ),
                                     );
-                                  }
-
-                                  return Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      IconButton(
-                                        constraints: const BoxConstraints(),
-                                        padding: EdgeInsets.zero,
-                                        icon: const Icon(Icons.remove_circle_outline, color: Color(0xFF1E1E1E), size: 18),
-                                        onPressed: () => cart.removeSingleItem(itemId),
-                                      ),
-                                      Text(
-                                        '$quantity',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E1E1E)),
-                                      ),
-                                      IconButton(
-                                        constraints: const BoxConstraints(),
-                                        padding: EdgeInsets.zero,
-                                        icon: const Icon(Icons.add_circle_outline, color: Color(0xFFF28C00), size: 18),
-                                        onPressed: () => cart.addItem(itemId, itemName, itemPrice, itemImage),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ],
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -450,7 +573,6 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                 ),
               ),
 
-              // Fetch Top-Level Categories for this Segment
               FutureBuilder<List<Map<String, dynamic>>>(
                 future: supabase
                     .from('categories')
@@ -920,6 +1042,164 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
     }
   }
 
+  void _showAddToCartDialog(BuildContext context, Map<String, dynamic> item) {
+    if (!_isCategoryActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This category is currently closed for orders.'),
+          duration: Duration(seconds: 1),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    int quantity = 1;
+    final double price = (item['price'] as num? ?? 0).toDouble();
+    final String itemName = item['name'] ?? '';
+    final String itemImage = item['image_url'] ?? '';
+    final String? sizesOrAges = item['sizes_or_ages'];
+    final String itemId = item['id'].toString();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              title: Text(
+                itemName,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
+                  color: Color(0xFF1E1E1E),
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (itemImage.isNotEmpty)
+                    Container(
+                      height: 140,
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: CustomNetworkImage(imageUrl: itemImage, fit: BoxFit.cover),
+                      ),
+                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Price:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                      Text(
+                        '₦${price.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E1E1E)),
+                      ),
+                    ],
+                  ),
+                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Size/Age:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                        Text(
+                          sizesOrAges,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E1E1E)),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Quantity:', style: TextStyle(fontSize: 13, color: Color(0xFF666666), fontWeight: FontWeight.w500)),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline, size: 22, color: Color(0xFF555555)),
+                            onPressed: () {
+                              if (quantity > 1) {
+                                setDialogState(() => quantity--);
+                              }
+                            },
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Text(
+                              '$quantity',
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E)),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline, size: 22, color: Color(0xFF555555)),
+                            onPressed: () {
+                              setDialogState(() => quantity++);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Color(0xFFDDDDDD), thickness: 1, height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E1E1E))),
+                      Text(
+                        '₦${(price * quantity).toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF28C00), fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF666666), fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF28C00),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                  onPressed: () {
+                    final cart = Provider.of<CartProvider>(context, listen: false);
+
+                    for (int i = 0; i < quantity; i++) {
+                      cart.addItem(itemId, itemName, price, itemImage);
+                    }
+
+                    Navigator.pop(dialogContext);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Added $quantity x $itemName to cart!'),
+                        backgroundColor: const Color(0xFF1E1E1E),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                  child: const Text('Add to Cart', style: TextStyle(fontSize: 12, letterSpacing: 0.5, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
@@ -998,146 +1278,98 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                       crossAxisCount: 2,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
-                      childAspectRatio: 0.75,
+                      childAspectRatio: 0.7,
                     ),
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final item = items[index];
-                      final itemId = item['id'].toString();
                       final itemName = item['name'] ?? '';
                       final itemPrice = (item['price'] as num? ?? 0).toDouble();
                       final itemImage = item['image_url'] ?? '';
+                      final String? sizesOrAges = item['sizes_or_ages'];
 
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                                    child: CustomNetworkImage(
-                                      imageUrl: itemImage,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                  if (!_isCategoryActive)
-                                    Container(
-                                      color: Colors.black.withValues(alpha: 0.4),
-                                      alignment: Alignment.center,
-                                      child: const Text(
-                                        'UNAVAILABLE',
-                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                      return GestureDetector(
+                        onTap: () => _showAddToCartDialog(context, item),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                      child: CustomNetworkImage(
+                                        imageUrl: itemImage,
+                                        fit: BoxFit.cover,
                                       ),
                                     ),
-                                ],
+                                    if (!_isCategoryActive)
+                                      Container(
+                                        color: Colors.black.withValues(alpha: 0.4),
+                                        alignment: Alignment.center,
+                                        child: const Text(
+                                          'UNAVAILABLE',
+                                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    itemName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '₦$itemPrice',
-                                    style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Consumer<CartProvider>(
-                                    builder: (context, cart, child) {
-                                      final quantity = cart.getQuantity(itemId);
-
-                                      if (!_isCategoryActive) {
-                                        return SizedBox(
-                                          width: double.infinity,
-                                          child: OutlinedButton(
-                                            style: OutlinedButton.styleFrom(
-                                              foregroundColor: Colors.grey,
-                                              side: const BorderSide(color: Colors.grey),
-                                              padding: const EdgeInsets.symmetric(vertical: 6),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                            ),
-                                            onPressed: () {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('This category is currently closed for orders.'),
-                                                  duration: Duration(seconds: 1),
-                                                  backgroundColor: Colors.red,
-                                                ),
-                                              );
-                                            },
-                                            child: const Text('CLOSED', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
-                                          ),
-                                        );
-                                      }
-
-                                      if (quantity == 0) {
-                                        return SizedBox(
-                                          width: double.infinity,
-                                          child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFFF28C00),
-                                              foregroundColor: Colors.white,
-                                              padding: const EdgeInsets.symmetric(vertical: 6),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                              elevation: 0,
-                                            ),
-                                            onPressed: () {
-                                              cart.addItem(itemId, itemName, itemPrice, itemImage);
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text('$itemName added to cart'),
-                                                  duration: const Duration(seconds: 1),
-                                                  backgroundColor: const Color(0xFF1E1E1E),
-                                                ),
-                                              );
-                                            },
-                                            child: const Text('ADD', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
-                                          ),
-                                        );
-                                      }
-
-                                      return Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          IconButton(
-                                            constraints: const BoxConstraints(),
-                                            padding: EdgeInsets.zero,
-                                            icon: const Icon(Icons.remove_circle_outline, color: Color(0xFF1E1E1E), size: 18),
-                                            onPressed: () => cart.removeSingleItem(itemId),
-                                          ),
-                                          Text(
-                                            '$quantity',
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E1E1E)),
-                                          ),
-                                          IconButton(
-                                            constraints: const BoxConstraints(),
-                                            padding: EdgeInsets.zero,
-                                            icon: const Icon(Icons.add_circle_outline, color: Color(0xFFF28C00), size: 18),
-                                            onPressed: () => cart.addItem(itemId, itemName, itemPrice, itemImage),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                ],
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      itemName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '₦$itemPrice',
+                                      style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
+                                    ),
+                                    if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Size/Age: $sizesOrAges',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 6),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFF28C00),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(vertical: 6),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: () => _showAddToCartDialog(context, item),
+                                        child: Text(
+                                          _isCategoryActive ? 'ADD' : 'CLOSED',
+                                          style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },
