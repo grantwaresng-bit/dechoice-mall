@@ -87,8 +87,8 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     try {
       final response = await Supabase.instance.client
           .from('items')
-          .select('*, categories!inner(segment_id, is_active)')
-          .eq('categories.segment_id', widget.segmentId)
+          .select('*, categories!left(segment_id, is_active)')
+          .or('segment_id.eq.${widget.segmentId},categories.segment_id.eq.${widget.segmentId}')
           .ilike('name', '%$trimmed%')
           .limit(30);
 
@@ -521,39 +521,22 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                                   ),
                                 ],
                                 const SizedBox(height: 6),
-                                Consumer<CartProvider>(
-                                  builder: (context, cart, child) {
-                                    if (!canOrder) {
-                                      return SizedBox(
-                                        width: double.infinity,
-                                        child: OutlinedButton(
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: Colors.grey,
-                                            side: const BorderSide(color: Colors.grey),
-                                            padding: const EdgeInsets.symmetric(vertical: 6),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                          ),
-                                          onPressed: () => _showAddToCartDialog(context, item, canOrder),
-                                          child: const Text('CLOSED', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
-                                        ),
-                                      );
-                                    }
-
-                                    return SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFFF28C00),
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(vertical: 6),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                          elevation: 0,
-                                        ),
-                                        onPressed: () => _showAddToCartDialog(context, item, canOrder),
-                                        child: const Text('ADD', style: TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
-                                      ),
-                                    );
-                                  },
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: canOrder ? const Color(0xFFF28C00) : Colors.grey,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 6),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                                      elevation: 0,
+                                    ),
+                                    onPressed: () => _showAddToCartDialog(context, item, canOrder),
+                                    child: Text(
+                                      canOrder ? 'ADD' : 'CLOSED',
+                                      style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -565,6 +548,143 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                 },
               ),
             ] else ...[
+              // 1. Load direct items attached to this segment (e.g. category-less items like MunchBox items)
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: supabase
+                    .from('items')
+                    .select()
+                    .eq('segment_id', widget.segmentId)
+                    .filter('category_id', 'is', null)
+                    .order('name', ascending: true),
+                builder: (context, directItemSnapshot) {
+                  if (directItemSnapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox.shrink();
+                  }
+                  final directItems = directItemSnapshot.data ?? [];
+                  if (directItems.isEmpty) return const SizedBox.shrink();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 12.0),
+                        child: Text(
+                          widget.segmentName.toUpperCase(),
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2, color: Color(0xFF1E1E1E)),
+                        ),
+                      ),
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 0.7,
+                        ),
+                        itemCount: directItems.length,
+                        itemBuilder: (context, index) {
+                          final item = directItems[index];
+                          final itemName = item['name'] ?? '';
+                          final itemPrice = (item['price'] as num? ?? 0).toDouble();
+                          final itemImage = item['image_url'] ?? '';
+                          final String? sizesOrAges = item['sizes_or_ages'];
+                          final bool canOrder = _isSegmentActive;
+
+                          return GestureDetector(
+                            onTap: () => _showAddToCartDialog(context, item, canOrder),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                          child: CustomNetworkImage(
+                                            imageUrl: itemImage,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                        if (!canOrder)
+                                          Container(
+                                            color: Colors.black.withValues(alpha: 0.4),
+                                            alignment: Alignment.center,
+                                            child: const Text(
+                                              'UNAVAILABLE',
+                                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          itemName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '₦$itemPrice',
+                                          style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
+                                        ),
+                                        if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'Size/Age: $sizesOrAges',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 6),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: canOrder ? const Color(0xFFF28C00) : Colors.grey,
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(vertical: 6),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                                              elevation: 0,
+                                            ),
+                                            onPressed: () => _showAddToCartDialog(context, item, canOrder),
+                                            child: Text(
+                                              canOrder ? 'ADD' : 'CLOSED',
+                                              style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                },
+              ),
+
+              // 2. Load Categories Section
               const Padding(
                 padding: EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 12.0),
                 child: Text(

@@ -394,10 +394,10 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                           width: 2.5,
                                         ),
                                       ),
-                                      child: CircleAvatar(
+                                      child: const CircleAvatar(
                                         radius: 32,
                                         backgroundColor: Colors.orange,
-                                        child: const Text('ALL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                                        child: Text('ALL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                                       ),
                                     ),
                                     const SizedBox(height: 6),
@@ -522,9 +522,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                       ? FutureBuilder<List<Map<String, dynamic>>>(
                     future: _supabase
                         .from('items')
-                        .select('*, categories!inner(id, name, is_active, segment_id, segments!inner(id, name, is_active))')
-                        .eq('categories.is_active', true)
-                        .eq('categories.segments.is_active', true)
+                        .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
                         .limit(50),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -543,7 +541,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                         physics: const NeverScrollableScrollPhysics(),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: isDesktop ? 5 : 2,
-                          childAspectRatio: 0.65, // Adjusted slightly to accommodate size/age label if present
+                          childAspectRatio: 0.65,
                           crossAxisSpacing: 14,
                           mainAxisSpacing: 20,
                         ),
@@ -554,74 +552,113 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                       );
                     },
                   )
-                      : FutureBuilder<List<Map<String, dynamic>>>(
-                    future: _supabase
-                        .from('categories')
-                        .select('*, segments!inner(id, name, is_active)')
-                        .eq('segment_id', _selectedSegmentId!)
-                        .eq('is_active', true)
-                        .eq('segments.is_active', true),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: Colors.orange)));
-                      }
+                      : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. Load items directly attached to this segment (for category-less segments like MunchBox)
+                      FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _supabase
+                            .from('items')
+                            .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
+                            .eq('segment_id', _selectedSegmentId!)
+                            .filter('category_id', 'is', null),
+                        builder: (context, directItemSnapshot) {
+                          final directItems = directItemSnapshot.data ?? [];
+                          if (directItems.isEmpty) return const SizedBox.shrink();
 
-                      final categories = snapshot.data ?? [];
-                      if (categories.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Center(child: Text('No active categories available in this selection yet.', style: TextStyle(color: Colors.grey, fontSize: 13))),
-                        );
-                      }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedSegmentName != null ? _selectedSegmentName!.toUpperCase() : 'ITEMS',
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.orange),
+                              ),
+                              const SizedBox(height: 12),
+                              GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: isDesktop ? 5 : 2,
+                                  childAspectRatio: 0.65,
+                                  crossAxisSpacing: 14,
+                                  mainAxisSpacing: 20,
+                                ),
+                                itemCount: directItems.length,
+                                itemBuilder: (context, index) {
+                                  return _buildProductCard(directItems[index]);
+                                },
+                              ),
+                              const SizedBox(height: 30),
+                            ],
+                          );
+                        },
+                      ),
+                      // 2. Load categories and their items for this segment (for standard multi-category segments)
+                      FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _supabase
+                            .from('categories')
+                            .select('*, segments!inner(id, name, is_active)')
+                            .eq('segment_id', _selectedSegmentId!)
+                            .eq('is_active', true)
+                            .eq('segments.is_active', true),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Colors.orange)));
+                          }
 
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: categories.length,
-                        itemBuilder: (context, catIndex) {
-                          final category = categories[catIndex];
-                          final catId = category['id'];
-                          final catName = category['name'] ?? 'Category';
+                          final categories = snapshot.data ?? [];
+                          if (categories.isEmpty) return const SizedBox.shrink();
 
-                          return FutureBuilder<List<Map<String, dynamic>>>(
-                            future: _supabase
-                                .from('items')
-                                .select('*, categories!inner(id, name, is_active, segment_id, segments!inner(id, name, is_active))')
-                                .eq('category_id', catId),
-                            builder: (context, catItemSnapshot) {
-                              final catItems = catItemSnapshot.data ?? [];
-                              if (catItems.isEmpty) return const SizedBox.shrink();
+                          return ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: categories.length,
+                            itemBuilder: (context, catIndex) {
+                              final category = categories[catIndex];
+                              final catId = category['id'];
+                              final catName = category['name'] ?? 'Category';
 
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    catName.toUpperCase(),
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.orange),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  GridView.builder(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: isDesktop ? 5 : 2,
-                                      childAspectRatio: 0.65,
-                                      crossAxisSpacing: 14,
-                                      mainAxisSpacing: 20,
-                                    ),
-                                    itemCount: catItems.length,
-                                    itemBuilder: (context, index) {
-                                      return _buildProductCard(catItems[index]);
-                                    },
-                                  ),
-                                  const SizedBox(height: 40),
-                                ],
+                              return FutureBuilder<List<Map<String, dynamic>>>(
+                                future: _supabase
+                                    .from('items')
+                                    .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
+                                    .eq('category_id', catId),
+                                builder: (context, catItemSnapshot) {
+                                  final catItems = catItemSnapshot.data ?? [];
+                                  if (catItems.isEmpty) return const SizedBox.shrink();
+
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        catName.toUpperCase(),
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.orange),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      GridView.builder(
+                                        shrinkWrap: true,
+                                        physics: const NeverScrollableScrollPhysics(),
+                                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: isDesktop ? 5 : 2,
+                                          childAspectRatio: 0.65,
+                                          crossAxisSpacing: 14,
+                                          mainAxisSpacing: 20,
+                                        ),
+                                        itemCount: catItems.length,
+                                        itemBuilder: (context, index) {
+                                          return _buildProductCard(catItems[index]);
+                                        },
+                                      ),
+                                      const SizedBox(height: 40),
+                                    ],
+                                  );
+                                },
                               );
                             },
                           );
                         },
-                      );
-                    },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -670,7 +707,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   Container(
                     color: Colors.grey.shade50,
                     width: double.infinity,
-                    child: item['image_url'] != null
+                    child: item['image_url'] != null && item['image_url'].toString().isNotEmpty
                         ? Image.network(item['image_url'], fit: BoxFit.cover)
                         : const Center(child: Icon(Icons.image, color: Colors.grey, size: 20)),
                   ),
