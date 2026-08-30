@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart'; // Required for kIsWeb
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -10,7 +10,10 @@ import '../providers/cart_provider.dart';
 class PaymentService {
   final _supabase = Supabase.instance.client;
 
-  Future<void> processPayment({
+  /// Initializes the payment gateway and opens the checkout page.
+  /// Returns the payment reference if the page was launched successfully.
+  /// Does NOT create any order in Supabase.
+  Future<String> processPayment({
     required CartProvider cart,
     required String name,
     required String phone,
@@ -21,21 +24,23 @@ class PaymentService {
     required String gateway,
     required BuildContext context,
   }) async {
-    final double grandTotal = cart.totalAmount + (deliveryType == 'delivery' ? deliveryFee : 0.0);
+    final double grandTotal =
+        cart.totalAmount + (deliveryType == 'delivery' ? deliveryFee : 0.0);
     final String uniqueRef = 'DM-${DateTime.now().millisecondsSinceEpoch}';
     const String customerEmail = 'customer@dechoicemall.com';
 
-    bool isPaymentSuccessful = false;
-
-    // Dynamically set callback/redirect URL: Web users stay on web, mobile app users trigger deep links
+    // Web uses your live domain, mobile uses deep link
     final String callbackUrl = kIsWeb
         ? 'https://dechoicemall.com'
         : 'dechoicemall://payment-callback';
 
     if (gateway == 'paystack') {
-      final String paystackSecretKey = dotenv.env['PAYSTACK_SECRET_KEY'] ?? '';
+      final String paystackSecretKey = dotenv.env['PAYSTACK_SECRET_KEY'] ??
+          const String.fromEnvironment('PAYSTACK_SECRET_KEY');
+
       if (paystackSecretKey.isEmpty) {
-        throw Exception('Paystack secret key is missing from environment variables.');
+        throw Exception(
+            'Paystack secret key is missing from environment variables.');
       }
 
       final int amountInKobo = (grandTotal * 100).toInt();
@@ -68,18 +73,20 @@ class PaymentService {
               mode: LaunchMode.externalApplication,
               browserConfiguration: const BrowserConfiguration(showTitle: true),
             );
-            isPaymentSuccessful = true;
+            return uniqueRef; // Success – only return reference
           } else {
             throw Exception('Could not launch Paystack checkout page.');
           }
         } else {
-          throw Exception(data['message'] ?? 'Failed to initialize Paystack transaction');
+          throw Exception(
+              data['message'] ?? 'Failed to initialize Paystack transaction');
         }
       } else {
         throw Exception('Paystack API error: ${response.body}');
       }
-    } else if (gateway == 'flutterwave') {
-      // Calls the Supabase Edge Function to bypass browser CORS blocks on Flutter Web
+    }
+
+    if (gateway == 'flutterwave') {
       try {
         final response = await _supabase.functions.invoke(
           'initialize-flutterwave',
@@ -102,8 +109,8 @@ class PaymentService {
 
         if (response.status == 200) {
           final data = response.data;
-          // Handle case where Supabase functions.invoke returns map or parsed JSON directly
-          final Map<String, dynamic> resData = data is String ? jsonDecode(data) : data;
+          final Map<String, dynamic> resData =
+          data is String ? jsonDecode(data) : Map<String, dynamic>.from(data);
 
           if (resData['status'] == 'success') {
             final String checkoutUrl = resData['data']['link'];
@@ -113,14 +120,16 @@ class PaymentService {
               await launchUrl(
                 uri,
                 mode: LaunchMode.externalApplication,
-                browserConfiguration: const BrowserConfiguration(showTitle: true),
+                browserConfiguration:
+                const BrowserConfiguration(showTitle: true),
               );
-              isPaymentSuccessful = true;
+              return uniqueRef; // Success – only return reference
             } else {
               throw Exception('Could not launch Flutterwave checkout page.');
             }
           } else {
-            throw Exception(resData['message'] ?? 'Failed to initialize Flutterwave transaction');
+            throw Exception(resData['message'] ??
+                'Failed to initialize Flutterwave transaction');
           }
         } else {
           throw Exception('Edge function error: ${response.data}');
@@ -130,31 +139,6 @@ class PaymentService {
       }
     }
 
-    // Save order data to Supabase only if payment initializes and launches successfully
-    if (isPaymentSuccessful) {
-      List<Map<String, dynamic>> orderItems = cart.items.values.map((item) {
-        return {
-          'name': item.name,
-          'price': item.price,
-          'quantity': item.quantity,
-          'image_url': item.imageUrl,
-        };
-      }).toList();
-
-      await _supabase.from('orders').insert({
-        'customer_name': name,
-        'phone_number': phone,
-        'delivery_type': deliveryType,
-        'delivery_address': address,
-        'delivery_location': deliveryLocation,
-        'delivery_fee': deliveryFee,
-        'items_total': cart.totalAmount,
-        'total_amount': grandTotal,
-        'payment_gateway': gateway,
-        'payment_reference': uniqueRef,
-        'items_json': orderItems,
-        'created_at': DateTime.now().toIso8601String(),
-      });
-    }
+    throw Exception('Unknown payment gateway: $gateway');
   }
 }

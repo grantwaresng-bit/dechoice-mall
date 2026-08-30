@@ -7,7 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/cart_provider.dart';
 import '../services/payment_service.dart';
 import '../widgets/responsive_wrapper.dart';
-import '../screens/home_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -48,10 +47,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       debugPrint('Warning: PAYSTACK_PUBLIC_KEY not found in .env file');
     }
     _fetchStoreHours();
-    _loadSavedCustomerDetails(); // Load cached details on init
+    _loadSavedCustomerDetails();
   }
 
-  // 1. Auto-fill details from device local storage
   Future<void> _loadSavedCustomerDetails() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -67,7 +65,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  // 2. Save details locally to device storage
   Future<void> _saveCustomerDetailsLocally() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -111,14 +108,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  // Check if current time is outside the dynamic delivery window
   bool _isPastDeliveryWindow() {
     final now = DateTime.now();
     final currentHour = now.hour;
     return currentHour < _deliveryStartHour || currentHour >= _deliveryEndHour;
   }
 
-  // Check if current time is outside the dynamic pickup window
   bool _isPastPickupWindow() {
     final now = DateTime.now();
     final currentHour = now.hour;
@@ -131,7 +126,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('DELIVERY HOURS ENDED', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.5, color: Color(0xFF1E1E1E))),
+        title: const Text(
+          'DELIVERY HOURS ENDED',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            letterSpacing: 1.5,
+            color: Color(0xFF1E1E1E),
+          ),
+        ),
         content: const Text(
           'It has passed our delivery time, please try pickup or tomorrow.',
           style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
@@ -139,7 +142,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK', style: TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, letterSpacing: 1)),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                color: Color(0xFFF28C00),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
           ),
         ],
       ),
@@ -152,7 +162,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        title: const Text('PICKUP HOURS ENDED', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.5, color: Color(0xFF1E1E1E))),
+        title: const Text(
+          'PICKUP HOURS ENDED',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            letterSpacing: 1.5,
+            color: Color(0xFF1E1E1E),
+          ),
+        ),
         content: Text(
           'It has passed our pickup time ($_pickupEndHour:00), please try again tomorrow.',
           style: const TextStyle(fontSize: 13, color: Color(0xFF666666)),
@@ -160,7 +178,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK', style: TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, letterSpacing: 1)),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                color: Color(0xFFF28C00),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
           ),
         ],
       ),
@@ -180,7 +205,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         }
         if (_selectedLocationId == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please select a delivery location'), backgroundColor: Color(0xFF1E1E1E)),
+            const SnackBar(
+              content: Text('Please select a delivery location'),
+              backgroundColor: Color(0xFF1E1E1E),
+            ),
           );
           return;
         }
@@ -204,7 +232,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         builder: (ctx) => AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-          title: const Text('CONFIRM ORDER & PAY', style: TextStyle(fontSize: 13, letterSpacing: 1.5, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E))),
+          title: const Text(
+            'CONFIRM ORDER & PAY',
+            style: TextStyle(
+              fontSize: 13,
+              letterSpacing: 1.5,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E1E1E),
+            ),
+          ),
           content: Text(
             'Type: ${_deliveryType.toUpperCase()}\n'
                 'Name: ${_nameController.text}\n'
@@ -217,7 +253,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('CANCEL', style: TextStyle(color: Color(0xFF666666), fontSize: 11, letterSpacing: 1)),
+              child: const Text(
+                'CANCEL',
+                style: TextStyle(color: Color(0xFF666666), fontSize: 11, letterSpacing: 1),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -230,7 +269,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 Navigator.pop(ctx);
                 _showPaymentMethodSelector(cart);
               },
-              child: const Text('PROCEED TO PAYMENT', style: TextStyle(fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'PROCEED TO PAYMENT',
+                style: TextStyle(fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -254,15 +296,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             children: [
               const Text(
                 'SELECT PAYMENT GATEWAY',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: Color(0xFF1E1E1E)),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                  color: Color(0xFF1E1E1E),
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.payment, color: Color(0xFFF28C00), size: 20),
-                title: const Text('Paystack', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E1E1E))),
-                subtitle: const Text('Pay with Card, USSD, or Bank Transfer', style: TextStyle(fontSize: 11, color: Color(0xFF666666))),
+                title: const Text(
+                  'Paystack',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E1E1E)),
+                ),
+                subtitle: const Text(
+                  'Pay with Card, USSD, or Bank Transfer',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF666666)),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _processActualPayment(cart, 'paystack');
@@ -272,8 +325,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.account_balance_wallet_outlined, color: Color(0xFFF28C00), size: 20),
-                title: const Text('Flutterwave', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E1E1E))),
-                subtitle: const Text('Pay with Cards, Bank, or Mobile Money', style: TextStyle(fontSize: 11, color: Color(0xFF666666))),
+                title: const Text(
+                  'Flutterwave',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E1E1E)),
+                ),
+                subtitle: const Text(
+                  'Pay with Cards, Bank, or Mobile Money',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF666666)),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _processActualPayment(cart, 'flutterwave');
@@ -289,91 +348,50 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _processActualPayment(CartProvider cart, String gateway) async {
     setState(() => _isProcessing = true);
 
-    final currentContext = context;
-    final scaffoldMessenger = ScaffoldMessenger.of(currentContext);
-    final navigator = Navigator.of(currentContext);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
       final paymentService = PaymentService();
 
-      // 1. Process payment via the designated gateway service safely
-      try {
-        await paymentService.processPayment(
-          cart: cart,
-          name: _nameController.text,
-          phone: _phoneController.text,
-          address: _deliveryType == 'delivery' ? _addressController.text : null,
-          deliveryType: _deliveryType,
-          deliveryLocation: _deliveryType == 'delivery' ? _selectedLocationName : null,
-          deliveryFee: _deliveryType == 'delivery' ? _deliveryFee : 0.0,
-          gateway: gateway,
-          context: currentContext,
-        );
-      } catch (paymentError) {
-        // Catch any external intent / plugin exception cleanly
-        throw Exception('Payment initialization error: $paymentError');
-      }
+      // Only initializes + opens the payment page.
+      // Returns the reference. Does NOT create any order.
+      final String paymentRef = await paymentService.processPayment(
+        cart: cart,
+        name: _nameController.text,
+        phone: _phoneController.text,
+        address: _deliveryType == 'delivery' ? _addressController.text : null,
+        deliveryType: _deliveryType,
+        deliveryLocation: _deliveryType == 'delivery' ? _selectedLocationName : null,
+        deliveryFee: _deliveryType == 'delivery' ? _deliveryFee : 0.0,
+        gateway: gateway,
+        context: context,
+      );
 
-      final supabase = Supabase.instance.client;
-      final grandTotal = _getGrandTotal(cart);
-      final fullDeliveryAddress = _deliveryType == 'delivery'
-          ? 'Area: ${_selectedLocationName ?? 'N/A'} - Address: ${_addressController.text}'
-          : 'Store Pickup';
+      if (!mounted) return;
 
-      // 2. Prepare items for Supabase jsonb column insertion
-      final List<Map<String, dynamic>> itemsJsonList = cart.items.values.map((cartItem) {
-        return {
-          'id': cartItem.id,
-          'name': cartItem.name,
-          'price': cartItem.price,
-          'quantity': cartItem.quantity,
-        };
-      }).toList();
-
-      // 3. Insert into the Supabase 'orders' table including items_json
-      final orderResponse = await supabase.from('orders').insert({
-        'customer_name': _nameController.text.trim(),
-        'phone_number': _phoneController.text.trim(),
-        'delivery_address': fullDeliveryAddress,
-        'total_amount': grandTotal,
-        'order_status': 'Received',
-        'delivery_type': _deliveryType,
-        'items_json': itemsJsonList,
-      }).select().single();
-
-      final orderId = orderResponse['id'];
-
-      // 4. Optionally insert items into 'order_items' table if your DB requires it
-      final List<Map<String, dynamic>> orderItemsData = cart.items.values.map((cartItem) {
-        return {
-          'order_id': orderId,
-          'item_id': cartItem.id,
-          'item_name': cartItem.name,
-          'price': cartItem.price,
-          'quantity': cartItem.quantity,
-        };
-      }).toList();
-
-      try {
-        await supabase.from('order_items').insert(orderItemsData);
-      } catch (_) {
-        // Fallback safety if order_items table structure differs
-      }
-
-      // 5. Clear local cart state
-      cart.clear();
-
+      // Important: We no longer save the order here.
+      // Order will only be created after real payment confirmation (later).
       scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Order placed successfully via ${gateway.toUpperCase()}!'), backgroundColor: const Color(0xFF1E1E1E)),
+        SnackBar(
+          content: Text(
+            'Payment page opened via ${gateway.toUpperCase()}.\n'
+                'Complete the payment in the browser/app that opened.\n'
+                'Reference: $paymentRef',
+          ),
+          backgroundColor: const Color(0xFF1E1E1E),
+          duration: const Duration(seconds: 6),
+        ),
       );
 
-      navigator.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false,
-      );
+      // Stay on checkout so the user can still see their cart if they return without paying.
     } catch (e) {
+      if (!mounted) return;
       scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Payment or Order saving failed: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Payment initialization failed: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
       );
     } finally {
       if (mounted) {
@@ -433,7 +451,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Left Column: Form Details
                     Expanded(
                       flex: 3,
                       child: ListView(
@@ -443,7 +460,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ),
                     ),
                     const SizedBox(width: 32),
-                    // Right Column: Summary Card & Checkout Button for Web View
                     Expanded(
                       flex: 2,
                       child: Container(
@@ -465,14 +481,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           children: [
                             const Text(
                               'PRICE DETAILS',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFF1E1E1E)),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.5,
+                                color: Color(0xFF1E1E1E),
+                              ),
                             ),
                             const Divider(height: 24, color: Color(0xFFDDDDDD)),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 const Text('Items Subtotal', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
-                                Text('₦${cart.totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: Color(0xFF1E1E1E))),
+                                Text(
+                                  '₦${cart.totalAmount.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 13,
+                                    color: Color(0xFF1E1E1E),
+                                  ),
+                                ),
                               ],
                             ),
                             if (_deliveryType == 'delivery') ...[
@@ -481,7 +509,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text('Delivery Fee', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
-                                  Text('₦$_deliveryFee', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: Color(0xFF1E1E1E))),
+                                  Text(
+                                    '₦$_deliveryFee',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13,
+                                      color: Color(0xFF1E1E1E)  ,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -489,7 +524,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('GRAND TOTAL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5, color: Color(0xFF1E1E1E))),
+                                const Text(
+                                  'GRAND TOTAL',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    letterSpacing: 1.5,
+                                    color: Color(0xFF1E1E1E),
+                                  ),
+                                ),
                                 Expanded(
                                   child: Align(
                                     alignment: Alignment.centerRight,
@@ -498,7 +541,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       alignment: Alignment.centerRight,
                                       child: Text(
                                         '₦${grandTotal.toStringAsFixed(2)}',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 0.5, color: Color(0xFFF28C00)),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 18,
+                                          letterSpacing: 0.5,
+                                          color: Color(0xFFF28C00),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -554,7 +602,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Items Subtotal', style: TextStyle(color: Color(0xFF666666), fontSize: 12)),
-                          Text('₦${cart.totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: Color(0xFF1E1E1E))),
+                          Text(
+                            '₦${cart.totalAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                              color: Color(0xFF1E1E1E),
+                            ),
+                          ),
                         ],
                       ),
                       if (_deliveryType == 'delivery') ...[
@@ -563,7 +618,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Delivery Fee', style: TextStyle(color: Color(0xFF666666), fontSize: 12)),
-                            Text('₦$_deliveryFee', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: Color(0xFF1E1E1E))),
+                            Text(
+                              '₦$_deliveryFee',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                                color: Color(0xFF1E1E1E),
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -571,7 +633,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('GRAND TOTAL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.5, color: Color(0xFF1E1E1E))),
+                          const Text(
+                            'GRAND TOTAL',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              letterSpacing: 1.5,
+                              color: Color(0xFF1E1E1E),
+                            ),
+                          ),
                           Expanded(
                             child: Align(
                               alignment: Alignment.centerRight,
@@ -580,7 +650,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                 alignment: Alignment.centerRight,
                                 child: Text(
                                   '₦${grandTotal.toStringAsFixed(2)}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.5, color: Color(0xFFF28C00)),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    letterSpacing: 0.5,
+                                    color: Color(0xFFF28C00),
+                                  ),
                                 ),
                               ),
                             ),
@@ -620,14 +695,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return [
       const Text(
         'FULFILLMENT METHOD',
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2, color: Color(0xFF1E1E1E)),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 2,
+          color: Color(0xFF1E1E1E),
+        ),
       ),
       const SizedBox(height: 12),
       Row(
         children: [
           Expanded(
             child: RadioListTile<String>(
-              title: const Text('Pick Up', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF1E1E1E))),
+              title: const Text(
+                'Pick Up',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF1E1E1E)),
+              ),
               value: 'pickup',
               groupValue: _deliveryType,
               activeColor: const Color(0xFFF28C00),
@@ -643,7 +726,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
           Expanded(
             child: RadioListTile<String>(
-              title: const Text('Home Delivery', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF1E1E1E))),
+              title: const Text(
+                'Home Delivery',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF1E1E1E)),
+              ),
               value: 'delivery',
               groupValue: _deliveryType,
               activeColor: const Color(0xFFF28C00),
@@ -660,26 +746,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
         ],
       ),
-
-      // Hours Notice Display Text
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 4.0),
         child: Text(
-          'Pickup Hours: $_deliveryStartHour:00 AM – $_pickupEndHour:00 PM\nDelivery Hours: $_deliveryStartHour:00 AM – $_deliveryEndHour:00 PM',
+          'Pickup Hours: $_deliveryStartHour:00 AM – $_pickupEndHour:00 PM\n'
+              'Delivery Hours: $_deliveryStartHour:00 AM – $_deliveryEndHour:00 PM',
           style: const TextStyle(fontSize: 11, color: Color(0xFF666666), height: 1.4),
         ),
       ),
       const SizedBox(height: 20),
-
       TextFormField(
         controller: _nameController,
         style: const TextStyle(color: Color(0xFF1E1E1E)),
         decoration: InputDecoration(
           labelText: 'Full Name',
           labelStyle: const TextStyle(color: Color(0xFF666666), fontSize: 13),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
-          focusedBorder: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(4)), borderSide: BorderSide(color: Color(0xFFF28C00), width: 1.5)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(4)),
+            borderSide: BorderSide(color: Color(0xFFF28C00), width: 1.5),
+          ),
         ),
         validator: (val) => val == null || val.isEmpty ? 'Please enter your name' : null,
       ),
@@ -691,9 +784,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         decoration: InputDecoration(
           labelText: 'Phone Number',
           labelStyle: const TextStyle(color: Color(0xFF666666), fontSize: 13),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
-          focusedBorder: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(4)), borderSide: BorderSide(color: Color(0xFFF28C00), width: 1.5)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(4)),
+            borderSide: BorderSide(color: Color(0xFFF28C00), width: 1.5),
+          ),
         ),
         validator: (val) => val == null || val.isEmpty ? 'Please enter your phone number' : null,
       ),
@@ -707,7 +809,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             }
             final locations = snapshot.data!;
             if (locations.isEmpty) {
-              return const Text('No delivery locations configured yet.', style: TextStyle(color: Colors.red, fontSize: 12));
+              return const Text(
+                'No delivery locations configured yet.',
+                style: TextStyle(color: Colors.red, fontSize: 12),
+              );
             }
 
             return DropdownButtonFormField<String>(
@@ -716,15 +821,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               decoration: InputDecoration(
                 labelText: 'Select Delivery Area',
                 labelStyle: const TextStyle(color: Color(0xFF666666), fontSize: 13),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
-                focusedBorder: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(4)), borderSide: BorderSide(color: Color(0xFFF28C00), width: 1.5)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(4)),
+                  borderSide: BorderSide(color: Color(0xFFF28C00), width: 1.5),
+                ),
               ),
               value: _selectedLocationId,
               items: locations.map((loc) {
                 return DropdownMenuItem<String>(
                   value: loc['id'].toString(),
-                  child: Text('${loc['location_name']} (₦${loc['delivery_fee']})', style: const TextStyle(fontSize: 13, color: Color(0xFF1E1E1E))),
+                  child: Text(
+                    '${loc['location_name']} (₦${loc['delivery_fee']})',
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF1E1E1E)),
+                  ),
                 );
               }).toList(),
               onChanged: (val) {
@@ -747,9 +864,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           decoration: InputDecoration(
             labelText: 'Specific Delivery Address / Street',
             labelStyle: const TextStyle(color: Color(0xFF666666), fontSize: 13),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
-            focusedBorder: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(4)), borderSide: BorderSide(color: Color(0xFFF28C00), width: 1.5)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+            ),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(4)),
+              borderSide: BorderSide(color: Color(0xFFF28C00), width: 1.5),
+            ),
           ),
           validator: (val) => _deliveryType == 'delivery' && (val == null || val.isEmpty)
               ? 'Please enter delivery address'

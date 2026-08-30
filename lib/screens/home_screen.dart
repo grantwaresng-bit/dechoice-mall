@@ -28,7 +28,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _debounce?.cancel(); // Changed from .dispose() to .cancel()
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -47,13 +47,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Fetch matching available items and join categories/segments to check active status
+      // Works for both items with categories and direct items (category_id = null)
       final response = await Supabase.instance.client
           .from('items')
           .select('*, categories(id, name, is_active, availability_note)')
           .ilike('name', '%$query%')
-          .eq('is_available', true) // Only show available items in global search
-          .limit(20);
+          .eq('is_available', true)
+          .limit(30);
 
       if (!mounted) return;
       setState(() {
@@ -110,7 +110,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
               title: Text(
                 item['name'] ?? 'Item',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.orange),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                  color: Colors.orange,
+                ),
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -126,10 +131,16 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                         child: CustomNetworkImage(imageUrl: item['image_url'], fit: BoxFit.cover),
                       ),
                     ),
-                  Text('Price: ₦${price.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.orange)),
+                  Text(
+                    'Price: ₦${price.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.orange),
+                  ),
                   if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Text('Sizes/Ages: $sizesOrAges', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: Colors.grey)),
+                    Text(
+                      'Sizes/Ages: $sizesOrAges',
+                      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: Colors.grey),
+                    ),
                   ],
                   const SizedBox(height: 16),
                   Row(
@@ -146,7 +157,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                               }
                             },
                           ),
-                          Text('$quantity', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange)),
+                          Text(
+                            '$quantity',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline, size: 20, color: Colors.orange),
                             onPressed: () {
@@ -162,7 +176,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange)),
-                      Text('₦${(price * quantity).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14)),
+                      Text(
+                        '₦${(price * quantity).toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14),
+                      ),
                     ],
                   ),
                 ],
@@ -201,7 +218,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       ),
                     );
                   },
-                  child: const Text('Add to Cart', style: TextStyle(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Add to Cart',
+                    style: TextStyle(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             );
@@ -271,9 +291,15 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               children: [
                 Text('₦${item['price'] ?? 0}'),
                 if (sizesOrAges != null && sizesOrAges.isNotEmpty)
-                  Text('Sizes/Ages: $sizesOrAges', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text(
+                    'Sizes/Ages: $sizesOrAges',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
                 if (!isCategoryActive)
-                  const Text('CLOSED / UNAVAILABLE', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'CLOSED / UNAVAILABLE',
+                    style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
               ],
             ),
             trailing: const Icon(Icons.add_shopping_cart, size: 20, color: Colors.orange),
@@ -313,7 +339,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         actions: [
-          // Global Search Icon Button
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
@@ -360,9 +385,15 @@ class HomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text('Dechoice Mall', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  Text(
+                    'Dechoice Mall',
+                    style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
                   SizedBox(height: 4),
-                  Text('Welcome Customer', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  Text(
+                    'Welcome Customer',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
                 ],
               ),
             ),
@@ -434,7 +465,9 @@ class HomeScreen extends StatelessWidget {
                 }
 
                 final segment = segments[index - 1];
-                final bool isActive = segment['is_active'] ?? true;
+
+                // Support both is_active and is_available columns from management app
+                final bool isActive = (segment['is_active'] ?? segment['is_available'] ?? true) == true;
                 final String? availabilityNote = segment['availability_note'];
                 final subtitleText = segment['subtitle'] ?? 'Tap to explore store & menu items';
 
@@ -483,7 +516,6 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        // Closed Overlay Banner if inactive
                         if (!isActive)
                           Positioned(
                             top: 12,
@@ -496,7 +528,12 @@ class HomeScreen extends StatelessWidget {
                               ),
                               child: const Text(
                                 'CLOSED',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                  letterSpacing: 1.5,
+                                ),
                               ),
                             ),
                           ),
@@ -507,7 +544,7 @@ class HomeScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                segment['name'],
+                                segment['name'] ?? '',
                                 style: TextStyle(
                                   color: isActive ? Colors.white : Colors.white70,
                                   fontSize: 22,

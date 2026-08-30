@@ -49,13 +49,15 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     try {
       final response = await Supabase.instance.client
           .from('segments')
-          .select('is_active, availability_note')
+          .select('is_active, is_available, availability_note')
           .eq('id', widget.segmentId)
           .maybeSingle();
 
       if (response != null && mounted) {
+        // Support both column names used in management vs older code
+        final active = response['is_active'] ?? response['is_available'] ?? true;
         setState(() {
-          _isSegmentActive = response['is_active'] ?? true;
+          _isSegmentActive = active == true;
           _segmentAvailabilityNote = response['availability_note'];
           _isLoadingSegment = false;
         });
@@ -85,9 +87,10 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     setState(() => _isSearchingItems = true);
 
     try {
+      // Search both direct segment items and items under categories of this segment
       final response = await Supabase.instance.client
           .from('items')
-          .select('*, categories!left(segment_id, is_active)')
+          .select('*, categories(segment_id, is_active)')
           .or('segment_id.eq.${widget.segmentId},categories.segment_id.eq.${widget.segmentId}')
           .ilike('name', '%$trimmed%')
           .limit(30);
@@ -259,6 +262,98 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildItemCard(Map<String, dynamic> item, bool canOrder) {
+    final itemName = item['name'] ?? '';
+    final itemPrice = (item['price'] as num? ?? 0).toDouble();
+    final itemImage = item['image_url'] ?? '';
+    final String? sizesOrAges = item['sizes_or_ages'];
+
+    return GestureDetector(
+      onTap: () => _showAddToCartDialog(context, item, canOrder),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                    child: CustomNetworkImage(
+                      imageUrl: itemImage,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  if (!canOrder)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'UNAVAILABLE',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    itemName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '₦${itemPrice.toStringAsFixed(0)}',
+                    style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Size/Age: $sizesOrAges',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canOrder ? const Color(0xFFF28C00) : Colors.grey,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                        elevation: 0,
+                      ),
+                      onPressed: () => _showAddToCartDialog(context, item, canOrder),
+                      child: Text(
+                        canOrder ? 'ADD' : 'CLOSED',
+                        style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -453,102 +548,14 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                 itemCount: _itemSearchResults.length,
                 itemBuilder: (context, index) {
                   final item = _itemSearchResults[index];
-                  final itemName = item['name'] ?? '';
-                  final itemPrice = (item['price'] as num? ?? 0).toDouble();
-                  final itemImage = item['image_url'] ?? '';
-                  final String? sizesOrAges = item['sizes_or_ages'];
                   final categoryData = item['categories'];
                   final bool isItemCategoryActive = categoryData == null || categoryData['is_active'] != false;
                   final bool canOrder = _isSegmentActive && isItemCategoryActive;
-
-                  return GestureDetector(
-                    onTap: () => _showAddToCartDialog(context, item, canOrder),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                                  child: CustomNetworkImage(
-                                    imageUrl: itemImage,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                if (!canOrder)
-                                  Container(
-                                    color: Colors.black.withValues(alpha: 0.4),
-                                    alignment: Alignment.center,
-                                    child: const Text(
-                                      'UNAVAILABLE',
-                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  itemName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '₦$itemPrice',
-                                  style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                                if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Size/Age: $sizesOrAges',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
-                                  ),
-                                ],
-                                const SizedBox(height: 6),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: canOrder ? const Color(0xFFF28C00) : Colors.grey,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 6),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                      elevation: 0,
-                                    ),
-                                    onPressed: () => _showAddToCartDialog(context, item, canOrder),
-                                    child: Text(
-                                      canOrder ? 'ADD' : 'CLOSED',
-                                      style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
+                  return _buildItemCard(item, canOrder);
                 },
               ),
             ] else ...[
-              // 1. Load direct items attached to this segment (e.g. category-less items like MunchBox items)
+              // ========== DIRECT ITEMS (no category) ==========
               FutureBuilder<List<Map<String, dynamic>>>(
                 future: supabase
                     .from('items')
@@ -558,8 +565,12 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                     .order('name', ascending: true),
                 builder: (context, directItemSnapshot) {
                   if (directItemSnapshot.connectionState == ConnectionState.waiting) {
-                    return const SizedBox.shrink();
+                    return const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(child: CircularProgressIndicator(color: Color(0xFFF28C00))),
+                    );
                   }
+
                   final directItems = directItemSnapshot.data ?? [];
                   if (directItems.isEmpty) return const SizedBox.shrink();
 
@@ -570,7 +581,12 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                         padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 12.0),
                         child: Text(
                           widget.segmentName.toUpperCase(),
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2, color: Color(0xFF1E1E1E)),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                            color: Color(0xFF1E1E1E),
+                          ),
                         ),
                       ),
                       GridView.builder(
@@ -586,96 +602,8 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                         itemCount: directItems.length,
                         itemBuilder: (context, index) {
                           final item = directItems[index];
-                          final itemName = item['name'] ?? '';
-                          final itemPrice = (item['price'] as num? ?? 0).toDouble();
-                          final itemImage = item['image_url'] ?? '';
-                          final String? sizesOrAges = item['sizes_or_ages'];
                           final bool canOrder = _isSegmentActive;
-
-                          return GestureDetector(
-                            onTap: () => _showAddToCartDialog(context, item, canOrder),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(
-                                    child: Stack(
-                                      fit: StackFit.expand,
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                                          child: CustomNetworkImage(
-                                            imageUrl: itemImage,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                        if (!canOrder)
-                                          Container(
-                                            color: Colors.black.withValues(alpha: 0.4),
-                                            alignment: Alignment.center,
-                                            child: const Text(
-                                              'UNAVAILABLE',
-                                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          itemName,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '₦$itemPrice',
-                                          style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
-                                        ),
-                                        if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            'Size/Age: $sizesOrAges',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
-                                          ),
-                                        ],
-                                        const SizedBox(height: 6),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: canOrder ? const Color(0xFFF28C00) : Colors.grey,
-                                              foregroundColor: Colors.white,
-                                              padding: const EdgeInsets.symmetric(vertical: 6),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                              elevation: 0,
-                                            ),
-                                            onPressed: () => _showAddToCartDialog(context, item, canOrder),
-                                            child: Text(
-                                              canOrder ? 'ADD' : 'CLOSED',
-                                              style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
+                          return _buildItemCard(item, canOrder);
                         },
                       ),
                       const SizedBox(height: 16),
@@ -684,7 +612,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                 },
               ),
 
-              // 2. Load Categories Section
+              // ========== CATEGORIES ==========
               const Padding(
                 padding: EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 12.0),
                 child: Text(
@@ -712,8 +640,9 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                       padding: EdgeInsets.all(20.0),
                       child: Center(
                         child: Text(
-                          'No categories available for this segment yet.',
+                          'No categories under this segment. Items (if any) are shown above.',
                           style: TextStyle(color: Color(0xFF666666), fontSize: 13),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     );
@@ -817,14 +746,20 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                        if (!isCategoryActive && catAvailabilityNote != null && catAvailabilityNote.isNotEmpty) ...[
+                                        if (!isCategoryActive &&
+                                            catAvailabilityNote != null &&
+                                            catAvailabilityNote.isNotEmpty) ...[
                                           const SizedBox(height: 4),
                                           Text(
                                             catAvailabilityNote,
                                             textAlign: TextAlign.center,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.w500),
+                                            style: const TextStyle(
+                                              color: Colors.redAccent,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
                                         ],
                                       ],
@@ -1387,7 +1322,10 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                   }
                   if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
                     return const Center(
-                      child: Text('No items available in this category yet.', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                      child: Text(
+                        'No items available in this category yet.',
+                        style: TextStyle(color: Color(0xFF666666), fontSize: 13),
+                      ),
                     );
                   }
 
@@ -1403,11 +1341,6 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final item = items[index];
-                      final itemName = item['name'] ?? '';
-                      final itemPrice = (item['price'] as num? ?? 0).toDouble();
-                      final itemImage = item['image_url'] ?? '';
-                      final String? sizesOrAges = item['sizes_or_ages'];
-
                       return GestureDetector(
                         onTap: () => _showAddToCartDialog(context, item),
                         child: Container(
@@ -1426,7 +1359,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                     ClipRRect(
                                       borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                                       child: CustomNetworkImage(
-                                        imageUrl: itemImage,
+                                        imageUrl: item['image_url'] ?? '',
                                         fit: BoxFit.cover,
                                       ),
                                     ),
@@ -1436,7 +1369,12 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                         alignment: Alignment.center,
                                         child: const Text(
                                           'UNAVAILABLE',
-                                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 10,
+                                            letterSpacing: 1.5,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -1448,23 +1386,36 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      itemName,
+                                      item['name'] ?? '',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                        color: Color(0xFF1E1E1E),
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      '₦$itemPrice',
-                                      style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
+                                      '₦${(item['price'] as num? ?? 0).toDouble().toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        color: Color(0xFFF28C00),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
                                     ),
-                                    if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                                    if (item['sizes_or_ages'] != null &&
+                                        (item['sizes_or_ages'] as String).isNotEmpty) ...[
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Size/Age: $sizesOrAges',
+                                        'Size/Age: ${item['sizes_or_ages']}',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ],
                                     const SizedBox(height: 6),
@@ -1481,7 +1432,11 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                         onPressed: () => _showAddToCartDialog(context, item),
                                         child: Text(
                                           _isCategoryActive ? 'ADD' : 'CLOSED',
-                                          style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            letterSpacing: 1.5,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
                                       ),
                                     ),
