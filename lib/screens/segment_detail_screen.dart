@@ -45,17 +45,18 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     super.dispose();
   }
 
+  // ---------- FIXED: use real columns ----------
   Future<void> _fetchSegmentStatus() async {
     try {
       final response = await Supabase.instance.client
           .from('segments')
-          .select('is_active, availability_note')
+          .select('is_available, availability_note')
           .eq('id', widget.segmentId)
           .maybeSingle();
 
       if (response != null && mounted) {
         setState(() {
-          _isSegmentActive = response['is_active'] ?? true;
+          _isSegmentActive = response['is_available'] ?? true;
           _segmentAvailabilityNote = response['availability_note'];
           _isLoadingSegment = false;
         });
@@ -68,11 +69,10 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     }
   }
 
+  // ---------- FIXED: simple safe search ----------
   Future<void> _performItemSearch(String query) async {
-    final trimmed = query.toLowerCase().trim();
-    setState(() {
-      _searchQuery = trimmed;
-    });
+    final trimmed = query.trim();
+    setState(() => _searchQuery = trimmed.toLowerCase());
 
     if (trimmed.isEmpty) {
       setState(() {
@@ -87,10 +87,11 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     try {
       final response = await Supabase.instance.client
           .from('items')
-          .select('*, categories!left(segment_id, is_active)')
-          .or('segment_id.eq.${widget.segmentId},categories.segment_id.eq.${widget.segmentId}')
+          .select('*')
+          .eq('segment_id', widget.segmentId)
           .ilike('name', '%$trimmed%')
-          .limit(30);
+          .order('name')
+          .limit(40);
 
       if (!mounted) return;
       setState(() {
@@ -110,7 +111,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
         const SnackBar(
           content: Text('This item is currently closed/unavailable for orders.'),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 1),
+          duration: Duration(seconds: 2),
         ),
       );
       return;
@@ -121,7 +122,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     final String itemId = item['id'].toString();
     final String itemName = item['name'] ?? '';
     final String itemImage = item['image_url'] ?? '';
-    final String? sizesOrAges = item['sizes_or_ages'];
+    final String? sizesOrAges = item['sizes_or_ages']?.toString();
 
     showDialog(
       context: context,
@@ -187,9 +188,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                           IconButton(
                             icon: const Icon(Icons.remove_circle_outline, size: 22, color: Color(0xFF555555)),
                             onPressed: () {
-                              if (quantity > 1) {
-                                setDialogState(() => quantity--);
-                              }
+                              if (quantity > 1) setDialogState(() => quantity--);
                             },
                           ),
                           Container(
@@ -201,9 +200,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline, size: 22, color: Color(0xFF555555)),
-                            onPressed: () {
-                              setDialogState(() => quantity++);
-                            },
+                            onPressed: () => setDialogState(() => quantity++),
                           ),
                         ],
                       ),
@@ -237,13 +234,10 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                   ),
                   onPressed: () {
                     final cart = Provider.of<CartProvider>(context, listen: false);
-
                     for (int i = 0; i < quantity; i++) {
                       cart.addItem(itemId, itemName, price, itemImage);
                     }
-
                     Navigator.pop(dialogContext);
-
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Added $quantity x $itemName to cart!'),
@@ -260,6 +254,12 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
         );
       },
     );
+  }
+
+  // Helper: decide if an item can be ordered
+  bool _canOrderItem(Map<String, dynamic> item) {
+    final bool itemAvailable = item['is_available'] == true;
+    return _isSegmentActive && itemAvailable;
   }
 
   @override
@@ -338,6 +338,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
+            // Closed banner
             if (!_isSegmentActive)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -373,6 +374,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
 
             SpecialOffersBanner(segmentId: widget.segmentId),
 
+            // Search field
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: TextField(
@@ -411,6 +413,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
               ),
             ),
 
+            // ========== SEARCH RESULTS ==========
             if (_searchQuery.isNotEmpty) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
@@ -453,102 +456,14 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                 itemCount: _itemSearchResults.length,
                 itemBuilder: (context, index) {
                   final item = _itemSearchResults[index];
-                  final itemName = item['name'] ?? '';
-                  final itemPrice = (item['price'] as num? ?? 0).toDouble();
-                  final itemImage = item['image_url'] ?? '';
-                  final String? sizesOrAges = item['sizes_or_ages'];
-                  final categoryData = item['categories'];
-                  final bool isItemCategoryActive = categoryData == null || categoryData['is_active'] != false;
-                  final bool canOrder = _isSegmentActive && isItemCategoryActive;
-
-                  return GestureDetector(
-                    onTap: () => _showAddToCartDialog(context, item, canOrder),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                                  child: CustomNetworkImage(
-                                    imageUrl: itemImage,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                if (!canOrder)
-                                  Container(
-                                    color: Colors.black.withValues(alpha: 0.4),
-                                    alignment: Alignment.center,
-                                    child: const Text(
-                                      'UNAVAILABLE',
-                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  itemName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '₦$itemPrice',
-                                  style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                                if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Size/Age: $sizesOrAges',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
-                                  ),
-                                ],
-                                const SizedBox(height: 6),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: canOrder ? const Color(0xFFF28C00) : Colors.grey,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 6),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                      elevation: 0,
-                                    ),
-                                    onPressed: () => _showAddToCartDialog(context, item, canOrder),
-                                    child: Text(
-                                      canOrder ? 'ADD' : 'CLOSED',
-                                      style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
+                  final canOrder = _canOrderItem(item);
+                  return _buildItemCard(item, canOrder);
                 },
               ),
             ] else ...[
-              // 1. Load direct items attached to this segment (e.g. category-less items like MunchBox items)
+              // ========== NORMAL VIEW (no search) ==========
+
+              // 1. Direct items (no category)
               FutureBuilder<List<Map<String, dynamic>>>(
                 future: supabase
                     .from('items')
@@ -586,257 +501,114 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                         itemCount: directItems.length,
                         itemBuilder: (context, index) {
                           final item = directItems[index];
-                          final itemName = item['name'] ?? '';
-                          final itemPrice = (item['price'] as num? ?? 0).toDouble();
-                          final itemImage = item['image_url'] ?? '';
-                          final String? sizesOrAges = item['sizes_or_ages'];
-                          final bool canOrder = _isSegmentActive;
-
-                          return GestureDetector(
-                            onTap: () => _showAddToCartDialog(context, item, canOrder),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(
-                                    child: Stack(
-                                      fit: StackFit.expand,
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                                          child: CustomNetworkImage(
-                                            imageUrl: itemImage,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                        if (!canOrder)
-                                          Container(
-                                            color: Colors.black.withValues(alpha: 0.4),
-                                            alignment: Alignment.center,
-                                            child: const Text(
-                                              'UNAVAILABLE',
-                                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          itemName,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '₦$itemPrice',
-                                          style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
-                                        ),
-                                        if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            'Size/Age: $sizesOrAges',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
-                                          ),
-                                        ],
-                                        const SizedBox(height: 6),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: canOrder ? const Color(0xFFF28C00) : Colors.grey,
-                                              foregroundColor: Colors.white,
-                                              padding: const EdgeInsets.symmetric(vertical: 6),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                              elevation: 0,
-                                            ),
-                                            onPressed: () => _showAddToCartDialog(context, item, canOrder),
-                                            child: Text(
-                                              canOrder ? 'ADD' : 'CLOSED',
-                                              style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
+                          final canOrder = _canOrderItem(item);
+                          return _buildItemCard(item, canOrder);
                         },
                       ),
-                      const SizedBox(height: 16),
                     ],
                   );
                 },
               ),
 
-              // 2. Load Categories Section
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 12.0),
-                child: Text(
-                  'CATEGORIES',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2, color: Color(0xFF1E1E1E)),
-                ),
-              ),
-
+              // 2. Categories of this segment
               FutureBuilder<List<Map<String, dynamic>>>(
                 future: supabase
                     .from('categories')
                     .select()
                     .eq('segment_id', widget.segmentId)
-                    .isFilter('parent_id', null)
+                    .filter('parent_id', 'is', null)
                     .order('name', ascending: true),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                builder: (context, catSnapshot) {
+                  if (catSnapshot.connectionState == ConnectionState.waiting) {
                     return const Padding(
-                      padding: EdgeInsets.all(40.0),
+                      padding: EdgeInsets.all(40),
                       child: Center(child: CircularProgressIndicator(color: Color(0xFFF28C00))),
                     );
                   }
-                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Center(
-                        child: Text(
-                          'No categories available for this segment yet.',
-                          style: TextStyle(color: Color(0xFF666666), fontSize: 13),
-                        ),
-                      ),
-                    );
+                  if (catSnapshot.hasError || !catSnapshot.hasData || catSnapshot.data!.isEmpty) {
+                    return const SizedBox.shrink();
                   }
 
-                  final categories = snapshot.data!;
+                  final categories = catSnapshot.data!;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 12.0),
+                        child: Text(
+                          'CATEGORIES',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2, color: Color(0xFF1E1E1E)),
+                        ),
+                      ),
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 1.0,
+                        ),
+                        itemCount: categories.length,
+                        itemBuilder: (context, index) {
+                          final category = categories[index];
+                          // Categories currently have no is_available column → always active
+                          const bool isCategoryActive = true;
 
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.0,
-                    ),
-                    itemCount: categories.length,
-                    itemBuilder: (context, index) {
-                      final category = categories[index];
-                      final bool isCategoryActive = category['is_active'] ?? true;
-                      final String? catAvailabilityNote = category['availability_note'];
-
-                      return GestureDetector(
-                        onTap: () async {
-                          final subCategories = await supabase
-                              .from('categories')
-                              .select()
-                              .eq('parent_id', category['id']);
-
-                          if (!context.mounted) return;
-
-                          if (subCategories.isNotEmpty) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SubCategoriesScreen(
-                                  parentCategoryId: category['id'],
-                                  parentCategoryName: category['name'],
-                                ),
-                              ),
-                            );
-                          } else {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => CategoryProductsScreen(
-                                  categoryId: category['id'],
-                                  categoryName: category['name'],
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                CustomNetworkImage(
-                                  imageUrl: category['image_url'] ?? '',
-                                  fit: BoxFit.cover,
-                                ),
-                                Container(
-                                  color: Colors.black.withValues(alpha: isCategoryActive ? 0.3 : 0.6),
-                                ),
-                                if (!isCategoryActive)
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                      child: const Text(
-                                        'CLOSED',
-                                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => CategoryProductsScreen(
+                                    categoryId: category['id'],
+                                    categoryName: category['name'] ?? '',
+                                    isSegmentActive: _isSegmentActive,
                                   ),
-                                Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          category['name'].toString().toUpperCase(),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    CustomNetworkImage(
+                                      imageUrl: category['image_url'] ?? '',
+                                      fit: BoxFit.cover,
+                                    ),
+                                    Container(
+                                      color: Colors.black.withValues(alpha: isCategoryActive ? 0.3 : 0.6),
+                                    ),
+                                    Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: Text(
+                                          (category['name'] ?? '').toString().toUpperCase(),
                                           textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: isCategoryActive ? Colors.white : Colors.white70,
+                                          style: const TextStyle(
+                                            color: Colors.white,
                                             fontSize: 12,
                                             letterSpacing: 1.5,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                        if (!isCategoryActive && catAvailabilityNote != null && catAvailabilityNote.isNotEmpty) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            catAvailabilityNote,
-                                            textAlign: TextAlign.center,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.w500),
-                                          ),
-                                        ],
-                                      ],
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ),
-                      );
-                    },
+                          );
+                        },
+                      ),
+                    ],
                   );
                 },
               ),
@@ -846,9 +618,110 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
       ),
     );
   }
+
+  // Reusable item card
+  Widget _buildItemCard(Map<String, dynamic> item, bool canOrder) {
+    final itemName = item['name'] ?? '';
+    final itemPrice = (item['price'] as num? ?? 0).toDouble();
+    final itemImage = item['image_url'] ?? '';
+    final String? sizesOrAges = item['sizes_or_ages']?.toString();
+
+    return GestureDetector(
+      onTap: () => _showAddToCartDialog(context, item, canOrder),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                    child: CustomNetworkImage(
+                      imageUrl: itemImage,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  if (!canOrder)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'UNAVAILABLE',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    itemName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      color: canOrder ? const Color(0xFF1E1E1E) : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    canOrder ? '₦$itemPrice' : 'Unavailable',
+                    style: TextStyle(
+                      color: canOrder ? const Color(0xFFF28C00) : Colors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Size/Age: $sizesOrAges',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canOrder ? const Color(0xFFF28C00) : Colors.grey,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                        elevation: 0,
+                      ),
+                      onPressed: () => _showAddToCartDialog(context, item, canOrder),
+                      child: Text(
+                        canOrder ? 'ADD' : 'CLOSED',
+                        style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-// --- SPECIAL OFFERS BANNER WIDGET ---
+// ---------- SPECIAL OFFERS BANNER ----------
 class SpecialOffersBanner extends StatefulWidget {
   final String segmentId;
 
@@ -873,11 +746,9 @@ class _SpecialOffersBannerState extends State<SpecialOffersBanner> {
 
   void _startAutoScroll(int offerCount) {
     if (offerCount <= 1) return;
-
     _autoScrollTimer?.cancel();
     _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (_isPaused || !mounted) return;
-
       if (_pageController.hasClients) {
         _currentPage = (_currentPage + 1) % offerCount;
         _pageController.animateToPage(
@@ -915,7 +786,6 @@ class _SpecialOffersBannerState extends State<SpecialOffersBanner> {
         }
 
         final offers = snapshot.data!;
-
         if (_autoScrollTimer == null && offers.length > 1) {
           _startAutoScroll(offers.length);
         }
@@ -929,19 +799,13 @@ class _SpecialOffersBannerState extends State<SpecialOffersBanner> {
             child: PageView.builder(
               controller: _pageController,
               itemCount: offers.length,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentPage = index;
-                });
-              },
+              onPageChanged: (index) => setState(() => _currentPage = index),
               itemBuilder: (context, index) {
                 return GestureDetector(
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const SpecialOffersPage(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const SpecialOffersPage()),
                     );
                   },
                   child: Container(
@@ -968,160 +832,17 @@ class _SpecialOffersBannerState extends State<SpecialOffersBanner> {
   }
 }
 
-// --- SUB-CATEGORIES SCREEN ---
-class SubCategoriesScreen extends StatelessWidget {
-  final String parentCategoryId;
-  final String parentCategoryName;
-
-  const SubCategoriesScreen({
-    super.key,
-    required this.parentCategoryId,
-    required this.parentCategoryName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final supabase = Supabase.instance.client;
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          parentCategoryName.toUpperCase(),
-          style: const TextStyle(color: Color(0xFF1E1E1E), letterSpacing: 2, fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
-        iconTheme: const IconThemeData(color: Color(0xFF1E1E1E)),
-      ),
-      body: ResponsiveLayoutWrapper(
-        maxWidth: 900,
-        child: FutureBuilder<List<Map<String, dynamic>>>(
-          future: supabase
-              .from('categories')
-              .select()
-              .eq('parent_id', parentCategoryId)
-              .order('name', ascending: true),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Color(0xFFF28C00)));
-            }
-            if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('No sub-categories available.', style: TextStyle(color: Color(0xFF666666), fontSize: 13)));
-            }
-
-            final subCategories = snapshot.data!;
-            return GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.0,
-              ),
-              itemCount: subCategories.length,
-              itemBuilder: (context, index) {
-                final subCat = subCategories[index];
-                final bool isSubActive = subCat['is_active'] ?? true;
-                final String? subNote = subCat['availability_note'];
-
-                return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CategoryProductsScreen(
-                        categoryId: subCat['id'],
-                        categoryName: subCat['name'],
-                      ),
-                    ),
-                  ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CustomNetworkImage(
-                            imageUrl: subCat['image_url'] ?? '',
-                            fit: BoxFit.cover,
-                          ),
-                          Container(
-                            color: Colors.black.withValues(alpha: isSubActive ? 0.3 : 0.6),
-                          ),
-                          if (!isSubActive)
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                                child: const Text(
-                                  'CLOSED',
-                                  style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                          Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    subCat['name'].toString().toUpperCase(),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: isSubActive ? Colors.white : Colors.white70,
-                                      fontSize: 12,
-                                      letterSpacing: 1.5,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  if (!isSubActive && subNote != null && subNote.isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      subNote,
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.w500),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-// --- PRODUCTS SCREEN FOR A SPECIFIC CATEGORY ---
+// ---------- CATEGORY PRODUCTS SCREEN ----------
 class CategoryProductsScreen extends StatefulWidget {
   final String categoryId;
   final String categoryName;
+  final bool isSegmentActive;
 
   const CategoryProductsScreen({
     super.key,
     required this.categoryId,
     required this.categoryName,
+    this.isSegmentActive = true,
   });
 
   @override
@@ -1129,45 +850,15 @@ class CategoryProductsScreen extends StatefulWidget {
 }
 
 class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
-  bool _isCategoryActive = true;
-  String? _categoryAvailabilityNote;
-  bool _isLoadingCategory = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchCategoryStatus();
-  }
-
-  Future<void> _fetchCategoryStatus() async {
-    try {
-      final response = await Supabase.instance.client
-          .from('categories')
-          .select('is_active, availability_note')
-          .eq('id', widget.categoryId)
-          .maybeSingle();
-
-      if (response != null && mounted) {
-        setState(() {
-          _isCategoryActive = response['is_active'] ?? true;
-          _categoryAvailabilityNote = response['availability_note'];
-          _isLoadingCategory = false;
-        });
-      } else {
-        setState(() => _isLoadingCategory = false);
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoadingCategory = false);
-      debugPrint('Error checking category status: $e');
-    }
-  }
-
   void _showAddToCartDialog(BuildContext context, Map<String, dynamic> item) {
-    if (!_isCategoryActive) {
+    final bool itemAvailable = item['is_available'] == true;
+    final bool canOrder = widget.isSegmentActive && itemAvailable;
+
+    if (!canOrder) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('This category is currently closed for orders.'),
-          duration: Duration(seconds: 1),
+          content: Text('This item is currently unavailable for orders.'),
+          duration: Duration(seconds: 2),
           backgroundColor: Colors.red,
         ),
       );
@@ -1178,7 +869,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
     final double price = (item['price'] as num? ?? 0).toDouble();
     final String itemName = item['name'] ?? '';
     final String itemImage = item['image_url'] ?? '';
-    final String? sizesOrAges = item['sizes_or_ages'];
+    final String? sizesOrAges = item['sizes_or_ages']?.toString();
     final String itemId = item['id'].toString();
 
     showDialog(
@@ -1245,9 +936,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                           IconButton(
                             icon: const Icon(Icons.remove_circle_outline, size: 22, color: Color(0xFF555555)),
                             onPressed: () {
-                              if (quantity > 1) {
-                                setDialogState(() => quantity--);
-                              }
+                              if (quantity > 1) setDialogState(() => quantity--);
                             },
                           ),
                           Container(
@@ -1259,9 +948,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline, size: 22, color: Color(0xFF555555)),
-                            onPressed: () {
-                              setDialogState(() => quantity++);
-                            },
+                            onPressed: () => setDialogState(() => quantity++),
                           ),
                         ],
                       ),
@@ -1295,13 +982,10 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                   ),
                   onPressed: () {
                     final cart = Provider.of<CartProvider>(context, listen: false);
-
                     for (int i = 0; i < quantity; i++) {
                       cart.addItem(itemId, itemName, price, itemImage);
                     }
-
                     Navigator.pop(dialogContext);
-
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Added $quantity x $itemName to cart!'),
@@ -1336,168 +1020,139 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
         centerTitle: false,
         iconTheme: const IconThemeData(color: Color(0xFF1E1E1E)),
       ),
-      body: _isLoadingCategory
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF28C00)))
-          : ResponsiveLayoutWrapper(
+      body: ResponsiveLayoutWrapper(
         maxWidth: 900,
-        child: Column(
-          children: [
-            if (!_isCategoryActive)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  border: Border.all(color: Colors.red.shade200),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.red, size: 16),
-                        SizedBox(width: 6),
-                        Text(
-                          'CATEGORY CURRENTLY CLOSED',
-                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1),
-                        ),
-                      ],
-                    ),
-                    if (_categoryAvailabilityNote != null && _categoryAvailabilityNote!.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        _categoryAvailabilityNote!,
-                        style: const TextStyle(color: Color(0xFF333333), fontSize: 12),
-                      ),
-                    ],
-                  ],
-                ),
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: supabase
+              .from('items')
+              .select()
+              .eq('category_id', widget.categoryId)
+              .order('name', ascending: true),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: Color(0xFFF28C00)));
+            }
+            if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(
+                child: Text('No items available in this category yet.', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+              );
+            }
+
+            final items = snapshot.data!;
+            return GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.7,
               ),
-            Expanded(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: supabase
-                    .from('items')
-                    .select()
-                    .eq('category_id', widget.categoryId)
-                    .order('name', ascending: true),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: Color(0xFFF28C00)));
-                  }
-                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(
-                      child: Text('No items available in this category yet.', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
-                    );
-                  }
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final bool itemAvailable = item['is_available'] == true;
+                final bool canOrder = widget.isSegmentActive && itemAvailable;
 
-                  final items = snapshot.data!;
-                  return GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.7,
+                final itemName = item['name'] ?? '';
+                final itemPrice = (item['price'] as num? ?? 0).toDouble();
+                final itemImage = item['image_url'] ?? '';
+                final String? sizesOrAges = item['sizes_or_ages']?.toString();
+
+                return GestureDetector(
+                  onTap: () => _showAddToCartDialog(context, item),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    itemCount: items.length,
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      final itemName = item['name'] ?? '';
-                      final itemPrice = (item['price'] as num? ?? 0).toDouble();
-                      final itemImage = item['image_url'] ?? '';
-                      final String? sizesOrAges = item['sizes_or_ages'];
-
-                      return GestureDetector(
-                        onTap: () => _showAddToCartDialog(context, item),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(color: const Color(0xFFDDDDDD), width: 1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: Stack(
+                            fit: StackFit.expand,
                             children: [
-                              Expanded(
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                                      child: CustomNetworkImage(
-                                        imageUrl: itemImage,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                    if (!_isCategoryActive)
-                                      Container(
-                                        color: Colors.black.withValues(alpha: 0.4),
-                                        alignment: Alignment.center,
-                                        child: const Text(
-                                          'UNAVAILABLE',
-                                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
-                                        ),
-                                      ),
-                                  ],
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                child: CustomNetworkImage(
+                                  imageUrl: itemImage,
+                                  fit: BoxFit.cover,
                                 ),
                               ),
-                              Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      itemName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF1E1E1E)),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '₦$itemPrice',
-                                      style: const TextStyle(color: Color(0xFFF28C00), fontWeight: FontWeight.bold, fontSize: 12),
-                                    ),
-                                    if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Size/Age: $sizesOrAges',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
-                                      ),
-                                    ],
-                                    const SizedBox(height: 6),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFFF28C00),
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(vertical: 6),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                          elevation: 0,
-                                        ),
-                                        onPressed: () => _showAddToCartDialog(context, item),
-                                        child: Text(
-                                          _isCategoryActive ? 'ADD' : 'CLOSED',
-                                          style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                              if (!canOrder)
+                                Container(
+                                  color: Colors.black.withValues(alpha: 0.45),
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'UNAVAILABLE',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                itemName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                  color: canOrder ? const Color(0xFF1E1E1E) : Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                canOrder ? '₦$itemPrice' : 'Unavailable',
+                                style: TextStyle(
+                                  color: canOrder ? const Color(0xFFF28C00) : Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Size/Age: $sizesOrAges',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                              const SizedBox(height: 6),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: canOrder ? const Color(0xFFF28C00) : Colors.grey,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                                    elevation: 0,
+                                  ),
+                                  onPressed: () => _showAddToCartDialog(context, item),
+                                  child: Text(
+                                    canOrder ? 'ADD' : 'CLOSED',
+                                    style: const TextStyle(fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
         ),
       ),
     );

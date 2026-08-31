@@ -34,7 +34,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
+    _debounce = Timer(const Duration(milliseconds: 400), () {
       _performSearch(query);
     });
   }
@@ -47,13 +47,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Fetch matching available items safely from the items table
+      // Only query the items table – no broken joins
       final response = await Supabase.instance.client
           .from('items')
-          .select('*, categories(id, name, availability_note)')
-          .ilike('name', '%$query%')
-          .eq('is_available', true) // Only show available items in global search
-          .limit(20);
+          .select('*')
+          .ilike('name', '%${query.trim()}%')
+          .order('name')
+          .limit(30);
 
       if (!mounted) return;
       setState(() {
@@ -61,29 +61,32 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       });
     } catch (e) {
       debugPrint('Search error: $e');
-    } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Search failed: $e'), backgroundColor: Colors.red),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  bool _isItemAvailable(Map<String, dynamic> item) {
+    return item['is_available'] == true;
+  }
+
   void _showAddToCartDialog(BuildContext context, Map<String, dynamic> item) {
-    final category = item['categories'];
-    final String availabilityNote = category != null ? (category['availability_note'] ?? '') : '';
-    final bool isAvailable = item['is_available'] == true;
-    final String? sizesOrAges = item['sizes_or_ages'];
+    final bool isAvailable = _isItemAvailable(item);
+    final String? sizesOrAges = item['sizes_or_ages']?.toString();
 
     if (!isAvailable) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Item Unavailable', style: TextStyle(color: Colors.red, fontSize: 16)),
-          content: Text(
-            availabilityNote.isNotEmpty
-                ? 'This item is currently unavailable.\n\nNote: $availabilityNote'
-                : 'This item or its store section is currently closed and not accepting orders.',
-            style: const TextStyle(fontSize: 13),
+          content: const Text(
+            'This item is currently unavailable and not accepting orders.',
+            style: TextStyle(fontSize: 13),
           ),
           actions: [
             TextButton(
@@ -125,10 +128,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                         child: CustomNetworkImage(imageUrl: item['image_url'], fit: BoxFit.cover),
                       ),
                     ),
-                  Text('Price: ₦${price.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.orange)),
+                  Text('Price: ₦${price.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.orange)),
                   if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Text('Sizes/Ages: $sizesOrAges', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: Colors.grey)),
+                    Text('Sizes/Ages: $sizesOrAges',
+                        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12, color: Colors.grey)),
                   ],
                   const SizedBox(height: 16),
                   Row(
@@ -140,17 +145,14 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                           IconButton(
                             icon: const Icon(Icons.remove_circle_outline, size: 20, color: Colors.orange),
                             onPressed: () {
-                              if (quantity > 1) {
-                                setDialogState(() => quantity--);
-                              }
+                              if (quantity > 1) setDialogState(() => quantity--);
                             },
                           ),
-                          Text('$quantity', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange)),
+                          Text('$quantity',
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange)),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline, size: 20, color: Colors.orange),
-                            onPressed: () {
-                              setDialogState(() => quantity++);
-                            },
+                            onPressed: () => setDialogState(() => quantity++),
                           ),
                         ],
                       ),
@@ -160,8 +162,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange)),
-                      Text('₦${(price * quantity).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14)),
+                      const Text('Total:',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange)),
+                      Text('₦${(price * quantity).toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14)),
                     ],
                   ),
                 ],
@@ -180,7 +184,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   ),
                   onPressed: () {
                     final cart = Provider.of<CartProvider>(context, listen: false);
-
                     for (int i = 0; i < quantity; i++) {
                       cart.addItem(
                         item['id'].toString(),
@@ -189,9 +192,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                         item['image_url'] ?? '',
                       );
                     }
-
                     Navigator.pop(dialogContext);
-
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Added $quantity x ${item['name']} to cart!'),
@@ -200,7 +201,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       ),
                     );
                   },
-                  child: const Text('Add to Cart', style: TextStyle(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.bold)),
+                  child: const Text('Add to Cart',
+                      style: TextStyle(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -251,27 +253,60 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         itemCount: _searchResults.length,
         itemBuilder: (context, index) {
           final item = _searchResults[index];
-          final String? sizesOrAges = item['sizes_or_ages'];
+          final bool available = _isItemAvailable(item);
+          final String? sizesOrAges = item['sizes_or_ages']?.toString();
 
           return ListTile(
-            leading: item['image_url'] != null
-                ? CustomNetworkImage(
-              imageUrl: item['image_url'],
-              width: 50,
-              height: 50,
-              fit: BoxFit.cover,
-            )
-                : const Icon(Icons.store, size: 50, color: Colors.orange),
-            title: Text(item['name'] ?? 'Dechoice Mall'),
+            leading: Stack(
+              children: [
+                item['image_url'] != null
+                    ? CustomNetworkImage(
+                  imageUrl: item['image_url'],
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                )
+                    : const Icon(Icons.store, size: 50, color: Colors.orange),
+                if (!available)
+                  Container(
+                    width: 50,
+                    height: 50,
+                    color: Colors.black54,
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'CLOSED',
+                      style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+              ],
+            ),
+            title: Text(
+              item['name'] ?? '',
+              style: TextStyle(
+                color: available ? Colors.black : Colors.grey,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('₦${item['price'] ?? 0}'),
+                Text(
+                  available ? '₦${item['price'] ?? 0}' : 'Currently Unavailable',
+                  style: TextStyle(
+                    color: available ? Colors.black87 : Colors.red,
+                    fontSize: 13,
+                  ),
+                ),
                 if (sizesOrAges != null && sizesOrAges.isNotEmpty)
-                  Text('Sizes/Ages: $sizesOrAges', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text('Sizes/Ages: $sizesOrAges',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
-            trailing: const Icon(Icons.add_shopping_cart, size: 20, color: Colors.orange),
+            trailing: Icon(
+              available ? Icons.add_shopping_cart : Icons.block,
+              size: 20,
+              color: available ? Colors.orange : Colors.grey,
+            ),
             onTap: () => _showAddToCartDialog(context, item),
           );
         },
@@ -354,7 +389,8 @@ class HomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text('Dechoice Mall', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  Text('Dechoice Mall',
+                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                   SizedBox(height: 4),
                   Text('Welcome Customer', style: TextStyle(color: Colors.white70, fontSize: 14)),
                 ],
@@ -428,8 +464,9 @@ class HomeScreen extends StatelessWidget {
                 }
 
                 final segment = segments[index - 1];
-                // Assuming segments keep an is_active check if needed, or default true
-                final bool isActive = segment['is_active'] ?? true;
+
+                // CORRECT column name
+                final bool isActive = segment['is_available'] ?? true;
                 final String? availabilityNote = segment['availability_note'];
                 final subtitleText = segment['subtitle'] ?? 'Tap to explore store & menu items';
 
@@ -490,7 +527,11 @@ class HomeScreen extends StatelessWidget {
                               ),
                               child: const Text(
                                 'CLOSED',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1.5),
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                    letterSpacing: 1.5),
                               ),
                             ),
                           ),
@@ -501,7 +542,7 @@ class HomeScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                segment['name'],
+                                segment['name'] ?? '',
                                 style: TextStyle(
                                   color: isActive ? Colors.white : Colors.white70,
                                   fontSize: 22,

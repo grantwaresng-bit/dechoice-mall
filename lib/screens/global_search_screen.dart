@@ -1,3 +1,4 @@
+// lib/screens/global_search_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -30,33 +31,39 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     }
 
     setState(() => _isLoading = true);
+
     try {
-      // Query items and join categories/segments to verify active status
+      // Simple & safe query – no joins, no broken columns
       final response = await Supabase.instance.client
           .from('items')
-          .select('*, categories!inner(is_active, segment_id, segments!inner(is_active))')
-          .ilike('name', '%$query%')
-          .limit(20);
+          .select('*')
+          .ilike('name', '%${query.trim()}%')
+          .order('name')
+          .limit(40);
 
       if (!mounted) return;
+
       setState(() {
         _searchResults = List<Map<String, dynamic>>.from(response);
       });
-    } catch (e) {
-      debugPrint('Search error: $e');
-    } finally {
+    } catch (e, stack) {
+      debugPrint('Search error: $e\n$stack');
       if (mounted) {
-        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Search failed: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   bool _isItemAvailable(Map<String, dynamic> item) {
-    final category = item['categories'];
-    final segment = category != null ? category['segments'] : null;
-    final bool isCategoryActive = category == null || category['is_active'] != false;
-    final bool isSegmentActive = segment == null || segment['is_active'] != false;
-    return isCategoryActive && isSegmentActive;
+    return item['is_available'] == true;
   }
 
   void _showAddToCartDialog(BuildContext context, Map<String, dynamic> item) {
@@ -67,7 +74,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         const SnackBar(
           content: Text('This item is currently closed/unavailable for orders.'),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 1),
+          duration: Duration(seconds: 2),
         ),
       );
       return;
@@ -75,7 +82,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     int quantity = 1;
     final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
-    final String? sizesOrAges = item['sizes_or_ages'];
+    final String? sizesOrAges = item['sizes_or_ages']?.toString();
 
     showDialog(
       context: context,
@@ -105,7 +112,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       margin: const EdgeInsets.only(bottom: 14),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: CustomNetworkImage(imageUrl: item['image_url'], fit: BoxFit.cover),
+                        child: CustomNetworkImage(
+                          imageUrl: item['image_url'],
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   Row(
@@ -114,7 +124,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       const Text('Price:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
                       Text(
                         '₦${price.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E1E1E)),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Color(0xFF1E1E1E),
+                        ),
                       ),
                     ],
                   ),
@@ -126,7 +140,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                         const Text('Size/Age:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
                         Text(
                           sizesOrAges,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E1E1E)),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: Color(0xFF1E1E1E),
+                          ),
                         ),
                       ],
                     ),
@@ -135,29 +153,32 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Quantity:', style: TextStyle(fontSize: 13, color: Color(0xFF666666), fontWeight: FontWeight.w500)),
+                      const Text(
+                        'Quantity:',
+                        style: TextStyle(fontSize: 13, color: Color(0xFF666666), fontWeight: FontWeight.w500),
+                      ),
                       Row(
                         children: [
                           IconButton(
                             icon: const Icon(Icons.remove_circle_outline, size: 22, color: Color(0xFF555555)),
                             onPressed: () {
-                              if (quantity > 1) {
-                                setDialogState(() => quantity--);
-                              }
+                              if (quantity > 1) setDialogState(() => quantity--);
                             },
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6),
                             child: Text(
                               '$quantity',
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E)),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E1E1E),
+                              ),
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline, size: 22, color: Color(0xFF555555)),
-                            onPressed: () {
-                              setDialogState(() => quantity++);
-                            },
+                            onPressed: () => setDialogState(() => quantity++),
                           ),
                         ],
                       ),
@@ -167,10 +188,17 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E1E1E))),
+                      const Text(
+                        'Total:',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E1E1E)),
+                      ),
                       Text(
                         '₦${(price * quantity).toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF28C00), fontSize: 16),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFF28C00),
+                          fontSize: 16,
+                        ),
                       ),
                     ],
                   ),
@@ -179,7 +207,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF666666), fontSize: 13, fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Color(0xFF666666), fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
@@ -211,7 +242,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       ),
                     );
                   },
-                  child: const Text('Add to Cart', style: TextStyle(fontSize: 12, letterSpacing: 0.5, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Add to Cart',
+                    style: TextStyle(fontSize: 12, letterSpacing: 0.5, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             );
@@ -238,7 +272,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           autofocus: true,
           style: const TextStyle(color: Color(0xFF1E1E1E), fontSize: 14, letterSpacing: 0.3),
           decoration: const InputDecoration(
-            hintText: 'Search items (e.g. milk, rice)...',
+            hintText: 'Search items (e.g. milk, rice, cola)...',
             hintStyle: TextStyle(color: Color(0xFF888888), fontSize: 14),
             border: InputBorder.none,
           ),
@@ -270,7 +304,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               const SizedBox(height: 12),
               const Text(
                 'DISCOVER COLLECTIONS',
-                style: TextStyle(color: Color(0xFF666666), fontSize: 11, letterSpacing: 2, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: Color(0xFF666666),
+                  fontSize: 11,
+                  letterSpacing: 2,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -284,7 +323,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               const SizedBox(height: 12),
               Text(
                 'No items found for "$queryText"',
-                style: const TextStyle(color: Color(0xFF666666), fontSize: 12, letterSpacing: 1, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  color: Color(0xFF666666),
+                  fontSize: 12,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -311,7 +355,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Widget _buildResultTile(BuildContext context, Map<String, dynamic> item) {
     final bool available = _isItemAvailable(item);
-    final String? sizesOrAges = item['sizes_or_ages'];
+    final String? sizesOrAges = item['sizes_or_ages']?.toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -327,7 +371,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           child: Stack(
             children: [
               item['image_url'] != null
-                  ? CustomNetworkImage(imageUrl: item['image_url'], width: 50, height: 50, fit: BoxFit.cover)
+                  ? CustomNetworkImage(
+                imageUrl: item['image_url'],
+                width: 50,
+                height: 50,
+                fit: BoxFit.cover,
+              )
                   : Container(
                 width: 50,
                 height: 50,
