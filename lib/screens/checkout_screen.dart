@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_paystack_fork/flutter_paystack_fork.dart';
@@ -23,15 +24,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final TextEditingController _addressController = TextEditingController();
   bool _isProcessing = false;
 
-  // Paystack plugin instance
-  final plugin = PaystackPlugin();
+  // Paystack plugin – only used on mobile
+  final PaystackPlugin plugin = PaystackPlugin();
 
   // Delivery location selection fields
   String? _selectedLocationId;
   String? _selectedLocationName;
   double _deliveryFee = 0.0;
 
-  // Dynamic store hours fetched from database
+  // Dynamic store hours
   int _deliveryStartHour = 8;
   int _deliveryEndHour = 19;
   int _pickupEndHour = 21;
@@ -40,12 +41,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    final publicKey = dotenv.env['PAYSTACK_PUBLIC_KEY'] ?? '';
-    if (publicKey.isNotEmpty) {
-      plugin.initialize(publicKey: publicKey);
-    } else {
-      debugPrint('Warning: PAYSTACK_PUBLIC_KEY not found in .env file');
+
+    // ---------- FIXED: only initialize Paystack on mobile ----------
+    if (!kIsWeb) {
+      final publicKey = dotenv.env['PAYSTACK_PUBLIC_KEY'] ?? '';
+      if (publicKey.isNotEmpty) {
+        plugin.initialize(publicKey: publicKey);
+      } else {
+        debugPrint('Warning: PAYSTACK_PUBLIC_KEY not found in .env file');
+      }
     }
+
     _fetchStoreHours();
     _loadSavedCustomerDetails();
   }
@@ -96,7 +102,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
     } catch (e) {
       debugPrint('Error fetching store hours: $e');
-      setState(() => _isLoadingHours = false);
+      if (mounted) setState(() => _isLoadingHours = false);
     }
   }
 
@@ -305,23 +311,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.payment, color: Color(0xFFF28C00), size: 20),
-                title: const Text(
-                  'Paystack',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E1E1E)),
+
+              // Only show Paystack on mobile
+              if (!kIsWeb) ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.payment, color: Color(0xFFF28C00), size: 20),
+                  title: const Text(
+                    'Paystack',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E1E1E)),
+                  ),
+                  subtitle: const Text(
+                    'Pay with Card, USSD, or Bank Transfer',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF666666)),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _processActualPayment(cart, 'paystack');
+                  },
                 ),
-                subtitle: const Text(
-                  'Pay with Card, USSD, or Bank Transfer',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF666666)),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _processActualPayment(cart, 'paystack');
-                },
-              ),
-              const Divider(color: Color(0xFFDDDDDD), height: 1, thickness: 0.5),
+                const Divider(color: Color(0xFFDDDDDD), height: 1, thickness: 0.5),
+              ],
+
+              // Flutterwave – works better on web
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.account_balance_wallet_outlined, color: Color(0xFFF28C00), size: 20),
@@ -338,6 +350,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   _processActualPayment(cart, 'flutterwave');
                 },
               ),
+
+              if (kIsWeb)
+                const Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Text(
+                    'Note: On web only Flutterwave is currently supported.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
             ],
           ),
         );
@@ -353,8 +375,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     try {
       final paymentService = PaymentService();
 
-      // Only initializes + opens the payment page.
-      // Returns the reference. Does NOT create any order.
       final String paymentRef = await paymentService.processPayment(
         cart: cart,
         name: _nameController.text,
@@ -369,8 +389,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       if (!mounted) return;
 
-      // Important: We no longer save the order here.
-      // Order will only be created after real payment confirmation (later).
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -382,8 +400,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           duration: const Duration(seconds: 6),
         ),
       );
-
-      // Stay on checkout so the user can still see their cart if they return without paying.
     } catch (e) {
       if (!mounted) return;
       scaffoldMessenger.showSnackBar(
@@ -514,7 +530,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w500,
                                       fontSize: 13,
-                                      color: Color(0xFF1E1E1E)  ,
+                                      color: Color(0xFF1E1E1E),
                                     ),
                                   ),
                                 ],
