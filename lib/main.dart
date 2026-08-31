@@ -12,12 +12,14 @@ import 'screens/web_home_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load local .env asset for mobile/local testing
+  // Load local .env asset for mobile/local testing if available
   if (!kIsWeb) {
-    await dotenv.load(fileName: ".env");
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (_) {}
   }
 
-  // Initialize Supabase using the centralized Config helper
+  // Initialize Supabase using hardcoded production configuration for zero errors
   await Supabase.initialize(
     url: Config.supabaseUrl,
     publishableKey: Config.supabaseKey,

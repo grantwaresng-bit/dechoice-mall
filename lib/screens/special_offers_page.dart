@@ -26,10 +26,10 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
     try {
       final supabase = Supabase.instance.client;
 
-      // Build query for special/promo items, joining category/segment info to check active statuses
+      // Query special/promo items directly from the items table using is_available
       var query = supabase
           .from('items')
-          .select('*, categories(id, name, is_active, segment_id, segments(is_active))')
+          .select('*')
           .eq('is_special_offer', true);
 
       final response = await query;
@@ -50,15 +50,15 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
     }
   }
 
+  bool _isItemAvailable(Map<String, dynamic> item) {
+    // Check the actual 'is_available' column from your items table schema
+    return item['is_available'] == true;
+  }
+
   void _addItemToCart(Map<String, dynamic> item) {
-    // Verify category and segment active status before adding
-    final category = item['categories'];
-    final segment = category != null ? category['segments'] : null;
+    final bool isAvailable = _isItemAvailable(item);
 
-    final bool isCategoryActive = category == null || category['is_active'] != false;
-    final bool isSegmentActive = segment == null || segment['is_active'] != false;
-
-    if (!isCategoryActive || !isSegmentActive) {
+    if (!isAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('This special offer item is currently closed/unavailable.'),
@@ -172,7 +172,7 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: isDesktop ? 5 : 2,
-                childAspectRatio: 0.65, // Adjusted slightly to fit size/age text nicely
+                childAspectRatio: 0.65,
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 20,
               ),
@@ -184,12 +184,8 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
                 final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
                 final String? sizesOrAges = item['sizes_or_ages'];
 
-                // Check active state
-                final category = item['categories'];
-                final segment = category != null ? category['segments'] : null;
-                final bool isCategoryActive = category == null || category['is_active'] != false;
-                final bool isSegmentActive = segment == null || segment['is_active'] != false;
-                final bool isAvailable = isCategoryActive && isSegmentActive;
+                // Check active/available state from items table toggle
+                final bool isAvailable = _isItemAvailable(item);
 
                 return Container(
                   decoration: BoxDecoration(

@@ -214,468 +214,474 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
           ],
         ),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 1. Dynamic Slider Hero Banner Section
-            FutureBuilder<List<Map<String, dynamic>>>(
-              future: _supabase
-                  .from('web_hero_content')
-                  .select()
-                  .eq('is_active', true)
-                  .order('display_order', ascending: true),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox(
-                    height: 420,
-                    child: Center(child: CircularProgressIndicator(color: Colors.orange)),
-                  );
-                }
+      body: Center(
+        child: Container(
+          // Optional constraint wrapper for expansive desktop web views to keep layouts clean
+          constraints: const BoxConstraints(maxWidth: 1400),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. Dynamic Slider Hero Banner Section
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _supabase
+                      .from('web_hero_content')
+                      .select()
+                      .eq('is_active', true)
+                      .order('display_order', ascending: true),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const SizedBox(
+                        height: 420,
+                        child: Center(child: CircularProgressIndicator(color: Colors.orange)),
+                      );
+                    }
 
-                final slides = snapshot.data ?? [];
+                    final slides = snapshot.data ?? [];
 
-                if (slides.isEmpty) {
-                  slides.add({
-                    'tagline': 'CRAFTED FOR THE EXTRAORDINARY',
-                    'headline': 'Discover Timeless Elegance.',
-                    'button_text': 'EXPLORE COLLECTION',
-                    'background_image_url': 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1600&auto=format&fit=crop',
-                  });
-                }
+                    if (slides.isEmpty) {
+                      slides.add({
+                        'tagline': 'CRAFTED FOR THE EXTRAORDINARY',
+                        'headline': 'Discover Timeless Elegance.',
+                        'button_text': 'EXPLORE COLLECTION',
+                        'background_image_url': 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1600&auto=format&fit=crop',
+                      });
+                    }
 
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _startAutoSlide(slides.length);
-                });
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _startAutoSlide(slides.length);
+                    });
 
-                return MouseRegion(
-                  onEnter: (_) => _sliderTimer?.cancel(),
-                  onExit: (_) => _startAutoSlide(slides.length),
-                  child: SizedBox(
-                    height: 420,
-                    child: Stack(
-                      children: [
-                        PageView.builder(
-                          controller: _pageController,
-                          itemCount: slides.length,
-                          onPageChanged: (index) {
-                            setState(() {
-                              _currentPage = index;
-                            });
-                          },
-                          itemBuilder: (context, index) {
-                            final slide = slides[index];
-                            final tagline = slide['tagline'] ?? '';
-                            final headline = slide['headline'] ?? '';
-                            final buttonText = slide['button_text'] ?? 'EXPLORE COLLECTION';
-                            final imageUrl = slide['background_image_url'] ?? '';
+                    return MouseRegion(
+                      onEnter: (_) => _sliderTimer?.cancel(),
+                      onExit: (_) => _startAutoSlide(slides.length),
+                      child: SizedBox(
+                        height: 420,
+                        child: Stack(
+                          children: [
+                            PageView.builder(
+                              controller: _pageController,
+                              itemCount: slides.length,
+                              onPageChanged: (index) {
+                                setState(() {
+                                  _currentPage = index;
+                                });
+                              },
+                              itemBuilder: (context, index) {
+                                final slide = slides[index];
+                                final tagline = slide['tagline'] ?? '';
+                                final headline = slide['headline'] ?? '';
+                                final buttonText = slide['button_text'] ?? 'EXPLORE COLLECTION';
+                                final imageUrl = slide['background_image_url'] ?? '';
 
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF111111),
-                                image: DecorationImage(
-                                  image: NetworkImage(imageUrl),
-                                  fit: BoxFit.cover,
-                                  opacity: 0.6,
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF111111),
+                                    image: DecorationImage(
+                                      image: NetworkImage(imageUrl),
+                                      fit: BoxFit.cover,
+                                      opacity: 0.6,
+                                    ),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (tagline.isNotEmpty) ...[
+                                          Row(
+                                            children: [
+                                              Container(width: 20, height: 2, color: Colors.orange),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                tagline,
+                                                style: const TextStyle(color: Colors.orangeAccent, letterSpacing: 2, fontSize: 11, fontWeight: FontWeight.w600),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                        ],
+                                        Text(
+                                          headline,
+                                          style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w300, letterSpacing: 0.5),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        OutlinedButton(
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.white,
+                                            side: const BorderSide(color: Colors.orange, width: 1.5),
+                                            backgroundColor: Colors.orange.withValues(alpha: 0.1),
+                                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                                          ),
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(builder: (_) => const SpecialOffersPage()),
+                                            );
+                                          },
+                                          child: Text(buttonText, style: const TextStyle(letterSpacing: 2, fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            if (slides.length > 1)
+                              Positioned(
+                                bottom: 16,
+                                left: 0,
+                                right: 0,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(slides.length, (dotIndex) {
+                                    return Container(
+                                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                                      width: _currentPage == dotIndex ? 24 : 8,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(3),
+                                        color: _currentPage == dotIndex ? Colors.orange : Colors.white.withValues(alpha: 0.5),
+                                      ),
+                                    );
+                                  }),
                                 ),
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (tagline.isNotEmpty) ...[
-                                      Row(
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                // 2. Instagram-Style Stories / Segments Bar (Active Segments Only)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'MALL SEGMENTS',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.orange),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 110,
+                        child: FutureBuilder<List<Map<String, dynamic>>>(
+                          future: _supabase.from('segments').select().eq('is_active', true).order('display_order', ascending: true),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return const Center(child: CircularProgressIndicator(color: Colors.orange));
+                            }
+                            final segments = snapshot.data!;
+
+                            return ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 16.0),
+                                  child: GestureDetector(
+                                    onTap: () => setState(() {
+                                      _selectedSegmentId = null;
+                                      _selectedSegmentName = null;
+                                    }),
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: _selectedSegmentId == null ? Colors.orange : Colors.transparent,
+                                              width: 2.5,
+                                            ),
+                                          ),
+                                          child: const CircleAvatar(
+                                            radius: 32,
+                                            backgroundColor: Colors.orange,
+                                            child: Text('ALL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        const Text('All Items', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                ...segments.map((segment) {
+                                  final segId = segment['id'];
+                                  final segName = segment['name'] ?? '';
+                                  final isSelected = _selectedSegmentId == segId;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 16.0),
+                                    child: GestureDetector(
+                                      onTap: () => setState(() {
+                                        _selectedSegmentId = segId;
+                                        _selectedSegmentName = segName;
+                                      }),
+                                      child: Column(
                                         children: [
-                                          Container(width: 20, height: 2, color: Colors.orange),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            tagline,
-                                            style: const TextStyle(color: Colors.orangeAccent, letterSpacing: 2, fontSize: 11, fontWeight: FontWeight.w600),
+                                          Container(
+                                            padding: const EdgeInsets.all(2),
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: isSelected ? Colors.orange : Colors.grey.shade300,
+                                                width: 2.5,
+                                              ),
+                                            ),
+                                            child: CircleAvatar(
+                                              radius: 32,
+                                              backgroundImage: segment['image_url'] != null ? NetworkImage(segment['image_url']) : null,
+                                              child: segment['image_url'] == null ? const Icon(Icons.store, color: Colors.white) : null,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          SizedBox(
+                                            width: 70,
+                                            child: Text(
+                                              segName,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500),
+                                            ),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 8),
-                                    ],
-                                    Text(
-                                      headline,
-                                      style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w300, letterSpacing: 0.5),
                                     ),
-                                    const SizedBox(height: 24),
-                                    OutlinedButton(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        side: const BorderSide(color: Colors.orange, width: 1.5),
-                                        backgroundColor: Colors.orange.withValues(alpha: 0.1),
-                                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-                                      ),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(builder: (_) => const SpecialOffersPage()),
-                                        );
-                                      },
-                                      child: Text(buttonText, style: const TextStyle(letterSpacing: 2, fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                                  );
+                                }),
+                              ],
                             );
                           },
                         ),
-                        if (slides.length > 1)
-                          Positioned(
-                            bottom: 16,
-                            left: 0,
-                            right: 0,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(slides.length, (dotIndex) {
-                                return Container(
-                                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                                  width: _currentPage == dotIndex ? 24 : 8,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(3),
-                                    color: _currentPage == dotIndex ? Colors.orange : Colors.white.withValues(alpha: 0.5),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
+                ),
 
-            // 2. Instagram-Style Stories / Segments Bar (Active Segments Only)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'MALL SEGMENTS',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.orange),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 110,
-                    child: FutureBuilder<List<Map<String, dynamic>>>(
-                      future: _supabase.from('segments').select().eq('is_active', true).order('display_order', ascending: true),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData) {
-                          return const Center(child: CircularProgressIndicator(color: Colors.orange));
-                        }
-                        final segments = snapshot.data!;
-
-                        return ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(right: 16.0),
-                              child: GestureDetector(
-                                onTap: () => setState(() {
-                                  _selectedSegmentId = null;
-                                  _selectedSegmentName = null;
-                                }),
-                                child: Column(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(2),
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: _selectedSegmentId == null ? Colors.orange : Colors.transparent,
-                                          width: 2.5,
-                                        ),
-                                      ),
-                                      child: const CircleAvatar(
-                                        radius: 32,
-                                        backgroundColor: Colors.orange,
-                                        child: Text('ALL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    const Text('All Items', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            ...segments.map((segment) {
-                              final segId = segment['id'];
-                              final segName = segment['name'] ?? '';
-                              final isSelected = _selectedSegmentId == segId;
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 16.0),
-                                child: GestureDetector(
-                                  onTap: () => setState(() {
-                                    _selectedSegmentId = segId;
-                                    _selectedSegmentName = segName;
-                                  }),
-                                  child: Column(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(2),
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: isSelected ? Colors.orange : Colors.grey.shade300,
-                                            width: 2.5,
-                                          ),
-                                        ),
-                                        child: CircleAvatar(
-                                          radius: 32,
-                                          backgroundImage: segment['image_url'] != null ? NetworkImage(segment['image_url']) : null,
-                                          child: segment['image_url'] == null ? const Icon(Icons.store, color: Colors.white) : null,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      SizedBox(
-                                        width: 70,
-                                        child: Text(
-                                          segName,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 3. Rich Categorized Content Section
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.withValues(alpha: 0.15)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedSegmentName != null ? _selectedSegmentName!.toUpperCase() : 'ALL STORE ITEMS',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.orange),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                _selectedSegmentName != null
-                                    ? 'Explore categories & items under $_selectedSegmentName'
-                                    : 'Explore all available store items below',
-                                style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w400),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_selectedSegmentId != null)
-                          ElevatedButton.icon(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SegmentDetailScreen(
-                                  segmentId: _selectedSegmentId!,
-                                  segmentName: _selectedSegmentName!,
-                                ),
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            ),
-                            icon: const Icon(Icons.open_in_new, size: 14),
-                            label: const Text('Open Store Page', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-
-                  // Fixed handling with active filtering joins for items and active categories
-                  _selectedSegmentId == null
-                      ? FutureBuilder<List<Map<String, dynamic>>>(
-                    future: _supabase
-                        .from('items')
-                        .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
-                        .limit(50),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: Colors.orange)));
-                      }
-                      final allItems = snapshot.data ?? [];
-                      if (allItems.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Center(child: Text('No items available in the store yet.', style: TextStyle(color: Colors.grey, fontSize: 13))),
-                        );
-                      }
-
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: isDesktop ? 5 : 2,
-                          childAspectRatio: 0.65,
-                          crossAxisSpacing: 14,
-                          mainAxisSpacing: 20,
-                        ),
-                        itemCount: allItems.length,
-                        itemBuilder: (context, index) {
-                          return _buildProductCard(allItems[index]);
-                        },
-                      );
-                    },
-                  )
-                      : Column(
+                // 3. Rich Categorized Content Section
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. Load items directly attached to this segment (for category-less segments like MunchBox)
-                      FutureBuilder<List<Map<String, dynamic>>>(
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.15)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _selectedSegmentName != null ? _selectedSegmentName!.toUpperCase() : 'ALL STORE ITEMS',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.orange),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _selectedSegmentName != null
+                                        ? 'Explore categories & items under $_selectedSegmentName'
+                                        : 'Explore all available store items below',
+                                    style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w400),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_selectedSegmentId != null)
+                              ElevatedButton.icon(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => SegmentDetailScreen(
+                                      segmentId: _selectedSegmentId!,
+                                      segmentName: _selectedSegmentName!,
+                                    ),
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                ),
+                                icon: const Icon(Icons.open_in_new, size: 14),
+                                label: const Text('Open Store Page', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+
+                      // Fixed handling with active filtering joins for items and active categories
+                      _selectedSegmentId == null
+                          ? FutureBuilder<List<Map<String, dynamic>>>(
                         future: _supabase
                             .from('items')
                             .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
-                            .eq('segment_id', _selectedSegmentId!)
-                            .filter('category_id', 'is', null),
-                        builder: (context, directItemSnapshot) {
-                          final directItems = directItemSnapshot.data ?? [];
-                          if (directItems.isEmpty) return const SizedBox.shrink();
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedSegmentName != null ? _selectedSegmentName!.toUpperCase() : 'ITEMS',
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.orange),
-                              ),
-                              const SizedBox(height: 12),
-                              GridView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: isDesktop ? 5 : 2,
-                                  childAspectRatio: 0.65,
-                                  crossAxisSpacing: 14,
-                                  mainAxisSpacing: 20,
-                                ),
-                                itemCount: directItems.length,
-                                itemBuilder: (context, index) {
-                                  return _buildProductCard(directItems[index]);
-                                },
-                              ),
-                              const SizedBox(height: 30),
-                            ],
-                          );
-                        },
-                      ),
-                      // 2. Load categories and their items for this segment (for standard multi-category segments)
-                      FutureBuilder<List<Map<String, dynamic>>>(
-                        future: _supabase
-                            .from('categories')
-                            .select('*, segments!inner(id, name, is_active)')
-                            .eq('segment_id', _selectedSegmentId!)
-                            .eq('is_active', true)
-                            .eq('segments.is_active', true),
+                            .limit(50),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Colors.orange)));
+                            return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: Colors.orange)));
+                          }
+                          final allItems = snapshot.data ?? [];
+                          if (allItems.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 40),
+                              child: Center(child: Text('No items available in the store yet.', style: TextStyle(color: Colors.grey, fontSize: 13))),
+                            );
                           }
 
-                          final categories = snapshot.data ?? [];
-                          if (categories.isEmpty) return const SizedBox.shrink();
-
-                          return ListView.builder(
+                          return GridView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
-                            itemCount: categories.length,
-                            itemBuilder: (context, catIndex) {
-                              final category = categories[catIndex];
-                              final catId = category['id'];
-                              final catName = category['name'] ?? 'Category';
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: isDesktop ? 5 : 2,
+                              childAspectRatio: 0.65,
+                              crossAxisSpacing: 14,
+                              mainAxisSpacing: 20,
+                            ),
+                            itemCount: allItems.length,
+                            itemBuilder: (context, index) {
+                              return _buildProductCard(allItems[index]);
+                            },
+                          );
+                        },
+                      )
+                          : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 1. Load items directly attached to this segment
+                          FutureBuilder<List<Map<String, dynamic>>>(
+                            future: _supabase
+                                .from('items')
+                                .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
+                                .eq('segment_id', _selectedSegmentId!)
+                                .filter('category_id', 'is', null),
+                            builder: (context, directItemSnapshot) {
+                              final directItems = directItemSnapshot.data ?? [];
+                              if (directItems.isEmpty) return const SizedBox.shrink();
 
-                              return FutureBuilder<List<Map<String, dynamic>>>(
-                                future: _supabase
-                                    .from('items')
-                                    .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
-                                    .eq('category_id', catId),
-                                builder: (context, catItemSnapshot) {
-                                  final catItems = catItemSnapshot.data ?? [];
-                                  if (catItems.isEmpty) return const SizedBox.shrink();
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _selectedSegmentName != null ? _selectedSegmentName!.toUpperCase() : 'ITEMS',
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.orange),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  GridView.builder(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: isDesktop ? 5 : 2,
+                                      childAspectRatio: 0.65,
+                                      crossAxisSpacing: 14,
+                                      mainAxisSpacing: 20,
+                                    ),
+                                    itemCount: directItems.length,
+                                    itemBuilder: (context, index) {
+                                      return _buildProductCard(directItems[index]);
+                                    },
+                                  ),
+                                  const SizedBox(height: 30),
+                                ],
+                              );
+                            },
+                          ),
+                          // 2. Load categories and their items for this segment
+                          FutureBuilder<List<Map<String, dynamic>>>(
+                            future: _supabase
+                                .from('categories')
+                                .select('*, segments!inner(id, name, is_active)')
+                                .eq('segment_id', _selectedSegmentId!)
+                                .eq('is_active', true)
+                                .eq('segments.is_active', true),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Colors.orange)));
+                              }
 
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        catName.toUpperCase(),
-                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.orange),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      GridView.builder(
-                                        shrinkWrap: true,
-                                        physics: const NeverScrollableScrollPhysics(),
-                                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: isDesktop ? 5 : 2,
-                                          childAspectRatio: 0.65,
-                                          crossAxisSpacing: 14,
-                                          mainAxisSpacing: 20,
-                                        ),
-                                        itemCount: catItems.length,
-                                        itemBuilder: (context, index) {
-                                          return _buildProductCard(catItems[index]);
-                                        },
-                                      ),
-                                      const SizedBox(height: 40),
-                                    ],
+                              final categories = snapshot.data ?? [];
+                              if (categories.isEmpty) return const SizedBox.shrink();
+
+                              return ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: categories.length,
+                                itemBuilder: (context, catIndex) {
+                                  final category = categories[catIndex];
+                                  final catId = category['id'];
+                                  final catName = category['name'] ?? 'Category';
+
+                                  return FutureBuilder<List<Map<String, dynamic>>>(
+                                    future: _supabase
+                                        .from('items')
+                                        .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
+                                        .eq('category_id', catId),
+                                    builder: (context, catItemSnapshot) {
+                                      final catItems = catItemSnapshot.data ?? [];
+                                      if (catItems.isEmpty) return const SizedBox.shrink();
+
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            catName.toUpperCase(),
+                                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.orange),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          GridView.builder(
+                                            shrinkWrap: true,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                              crossAxisCount: isDesktop ? 5 : 2,
+                                              childAspectRatio: 0.65,
+                                              crossAxisSpacing: 14,
+                                              mainAxisSpacing: 20,
+                                            ),
+                                            itemCount: catItems.length,
+                                            itemBuilder: (context, index) {
+                                              return _buildProductCard(catItems[index]);
+                                            },
+                                          ),
+                                          const SizedBox(height: 40),
+                                        ],
+                                      );
+                                    },
                                   );
                                 },
                               );
                             },
-                          );
-                        },
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-
-            // 4. Clean Footer
-            Container(
-              color: const Color(0xFF111111),
-              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 32),
-              child: const Center(
-                child: Text(
-                  '© 2026 Dechoice Mall. All rights reserved.',
-                  style: TextStyle(color: Colors.grey, fontSize: 11, letterSpacing: 0.5),
                 ),
-              ),
+
+                // 4. Clean Footer
+                Container(
+                  color: const Color(0xFF111111),
+                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 32),
+                  child: const Center(
+                    child: Text(
+                      '© 2026 Dechoice Mall. All rights reserved.',
+                      style: TextStyle(color: Colors.grey, fontSize: 11, letterSpacing: 0.5),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

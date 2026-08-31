@@ -2,15 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Config {
-  // Supabase URL
-  static String get supabaseUrl => kIsWeb
-      ? const String.fromEnvironment('SUPABASE_URL')
-      : (dotenv.env['SUPABASE_URL'] ?? '');
+  // Hardcoded production Supabase URL
+  static String get supabaseUrl => 'https://lyvenufljhemhoaifgts.supabase.co';
 
-  // Supabase Publishable Key
-  static String get supabaseKey => kIsWeb
-      ? const String.fromEnvironment('SUPABASE_ANON_KEY')
-      : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
+  // Hardcoded production Supabase Publishable / Anon Key
+  static String get supabaseKey => 'sb_publishable_N-W9nLi-AqZcmFkZFhYqnw_4VeIulZn';
 
   // Flutterwave Public Key
   static String get flutterwaveKey => kIsWeb

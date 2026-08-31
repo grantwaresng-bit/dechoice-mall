@@ -28,7 +28,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _debounce?.cancel(); // Changed from .dispose() to .cancel()
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -47,10 +47,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Fetch matching available items and join categories/segments to check active status
+      // Fetch matching available items safely from the items table
       final response = await Supabase.instance.client
           .from('items')
-          .select('*, categories(id, name, is_active, availability_note)')
+          .select('*, categories(id, name, availability_note)')
           .ilike('name', '%$query%')
           .eq('is_available', true) // Only show available items in global search
           .limit(20);
@@ -70,12 +70,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   void _showAddToCartDialog(BuildContext context, Map<String, dynamic> item) {
     final category = item['categories'];
-    final bool isCategoryActive = category == null || category['is_active'] != false;
     final String availabilityNote = category != null ? (category['availability_note'] ?? '') : '';
-    final bool isAvailable = item['is_available'] ?? true;
+    final bool isAvailable = item['is_available'] == true;
     final String? sizesOrAges = item['sizes_or_ages'];
 
-    if (!isCategoryActive || !isAvailable) {
+    if (!isAvailable) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -252,8 +251,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         itemCount: _searchResults.length,
         itemBuilder: (context, index) {
           final item = _searchResults[index];
-          final category = item['categories'];
-          final bool isCategoryActive = category == null || category['is_active'] != false;
           final String? sizesOrAges = item['sizes_or_ages'];
 
           return ListTile(
@@ -272,8 +269,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                 Text('₦${item['price'] ?? 0}'),
                 if (sizesOrAges != null && sizesOrAges.isNotEmpty)
                   Text('Sizes/Ages: $sizesOrAges', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                if (!isCategoryActive)
-                  const Text('CLOSED / UNAVAILABLE', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
               ],
             ),
             trailing: const Icon(Icons.add_shopping_cart, size: 20, color: Colors.orange),
@@ -313,7 +308,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         actions: [
-          // Global Search Icon Button
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
@@ -434,6 +428,7 @@ class HomeScreen extends StatelessWidget {
                 }
 
                 final segment = segments[index - 1];
+                // Assuming segments keep an is_active check if needed, or default true
                 final bool isActive = segment['is_active'] ?? true;
                 final String? availabilityNote = segment['availability_note'];
                 final subtitleText = segment['subtitle'] ?? 'Tap to explore store & menu items';
@@ -483,7 +478,6 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        // Closed Overlay Banner if inactive
                         if (!isActive)
                           Positioned(
                             top: 12,
