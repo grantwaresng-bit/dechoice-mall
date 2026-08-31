@@ -22,6 +22,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
   String? _selectedSegmentId; // null means "ALL"
   String? _selectedSegmentName;
 
+  // Slider controllers & timer
   final PageController _pageController = PageController();
   int _currentPage = 0;
   Timer? _sliderTimer;
@@ -49,23 +50,12 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
     });
   }
 
-  /// Handles both items under categories and direct items (category_id = null)
   bool _isItemAvailable(Map<String, dynamic> item) {
     final category = item['categories'];
+    final segment = category != null ? category['segments'] : null;
+    final bool isCategoryActive = category == null || category['is_active'] != false;
+    final bool isSegmentActive = segment == null || segment['is_active'] != false;
     final bool isItemAvailableFlag = item['is_available'] ?? true;
-
-    // Direct item (no category)
-    if (category == null) {
-      // For direct items we only care about the item itself + the parent segment status
-      // (segment status is already filtered when loading the segment)
-      return isItemAvailableFlag;
-    }
-
-    final segment = category['segments'];
-    final bool isCategoryActive = category['is_active'] != false;
-    final bool isSegmentActive = segment == null ||
-        (segment['is_active'] != false && segment['is_available'] != false);
-
     return isCategoryActive && isSegmentActive && isItemAvailableFlag;
   }
 
@@ -90,10 +80,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
     cart.addItem(itemId, name, price, imageUrl);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Added item to cart'),
-        duration: Duration(milliseconds: 500),
-      ),
+      const SnackBar(content: Text('Added item to cart'), duration: Duration(milliseconds: 500)),
     );
   }
 
@@ -178,15 +165,9 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text(
-                    'Dechoice Mall',
-                    style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
+                  Text('Dechoice Mall', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                   SizedBox(height: 4),
-                  Text(
-                    'Welcome Customer',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
+                  Text('Welcome Customer', style: TextStyle(color: Colors.white70, fontSize: 14)),
                 ],
               ),
             ),
@@ -237,7 +218,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Hero Slider
+            // 1. Dynamic Slider Hero Banner Section
             FutureBuilder<List<Map<String, dynamic>>>(
               future: _supabase
                   .from('web_hero_content')
@@ -252,15 +233,14 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   );
                 }
 
-                final slides = List<Map<String, dynamic>>.from(snapshot.data ?? []);
+                final slides = snapshot.data ?? [];
 
                 if (slides.isEmpty) {
                   slides.add({
                     'tagline': 'CRAFTED FOR THE EXTRAORDINARY',
                     'headline': 'Discover Timeless Elegance.',
                     'button_text': 'EXPLORE COLLECTION',
-                    'background_image_url':
-                    'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1600&auto=format&fit=crop',
+                    'background_image_url': 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1600&auto=format&fit=crop',
                   });
                 }
 
@@ -279,7 +259,9 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                           controller: _pageController,
                           itemCount: slides.length,
                           onPageChanged: (index) {
-                            setState(() => _currentPage = index);
+                            setState(() {
+                              _currentPage = index;
+                            });
                           },
                           itemBuilder: (context, index) {
                             final slide = slides[index];
@@ -310,12 +292,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                           const SizedBox(width: 8),
                                           Text(
                                             tagline,
-                                            style: const TextStyle(
-                                              color: Colors.orangeAccent,
-                                              letterSpacing: 2,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                            style: const TextStyle(color: Colors.orangeAccent, letterSpacing: 2, fontSize: 11, fontWeight: FontWeight.w600),
                                           ),
                                         ],
                                       ),
@@ -323,12 +300,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                     ],
                                     Text(
                                       headline,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w300,
-                                        letterSpacing: 0.5,
-                                      ),
+                                      style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w300, letterSpacing: 0.5),
                                     ),
                                     const SizedBox(height: 24),
                                     OutlinedButton(
@@ -345,15 +317,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                           MaterialPageRoute(builder: (_) => const SpecialOffersPage()),
                                         );
                                       },
-                                      child: Text(
-                                        buttonText,
-                                        style: const TextStyle(
-                                          letterSpacing: 2,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
+                                      child: Text(buttonText, style: const TextStyle(letterSpacing: 2, fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
                                     ),
                                   ],
                                 ),
@@ -375,9 +339,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                   height: 6,
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(3),
-                                    color: _currentPage == dotIndex
-                                        ? Colors.orange
-                                        : Colors.white.withValues(alpha: 0.5),
+                                    color: _currentPage == dotIndex ? Colors.orange : Colors.white.withValues(alpha: 0.5),
                                   ),
                                 );
                               }),
@@ -390,7 +352,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
               },
             ),
 
-            // 2. Segments Bar
+            // 2. Instagram-Style Stories / Segments Bar (Active Segments Only)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 24),
               child: Column(
@@ -404,22 +366,12 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   SizedBox(
                     height: 110,
                     child: FutureBuilder<List<Map<String, dynamic>>>(
-                      // Support both is_active and is_available columns
-                      future: _supabase
-                          .from('segments')
-                          .select()
-                          .order('display_order', ascending: true),
+                      future: _supabase.from('segments').select().eq('is_active', true).order('display_order', ascending: true),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) {
                           return const Center(child: CircularProgressIndicator(color: Colors.orange));
                         }
-
-                        // Filter active segments client-side so both column names work
-                        final allSegments = snapshot.data!;
-                        final segments = allSegments.where((s) {
-                          final active = s['is_active'] ?? s['is_available'] ?? true;
-                          return active == true;
-                        }).toList();
+                        final segments = snapshot.data!;
 
                         return ListView(
                           scrollDirection: Axis.horizontal,
@@ -445,14 +397,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                       child: const CircleAvatar(
                                         radius: 32,
                                         backgroundColor: Colors.orange,
-                                        child: Text(
-                                          'ALL',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12,
-                                          ),
-                                        ),
+                                        child: Text('ALL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                                       ),
                                     ),
                                     const SizedBox(height: 6),
@@ -485,12 +430,8 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                         ),
                                         child: CircleAvatar(
                                           radius: 32,
-                                          backgroundImage: segment['image_url'] != null
-                                              ? NetworkImage(segment['image_url'])
-                                              : null,
-                                          child: segment['image_url'] == null
-                                              ? const Icon(Icons.store, color: Colors.white)
-                                              : null,
+                                          backgroundImage: segment['image_url'] != null ? NetworkImage(segment['image_url']) : null,
+                                          child: segment['image_url'] == null ? const Icon(Icons.store, color: Colors.white) : null,
                                         ),
                                       ),
                                       const SizedBox(height: 6),
@@ -500,10 +441,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                           segName,
                                           overflow: TextOverflow.ellipsis,
                                           textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                          ),
+                                          style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500),
                                         ),
                                       ),
                                     ],
@@ -520,7 +458,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
               ),
             ),
 
-            // 3. Content Section
+            // 3. Rich Categorized Content Section
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
               child: Column(
@@ -541,26 +479,15 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _selectedSegmentName != null
-                                    ? _selectedSegmentName!.toUpperCase()
-                                    : 'ALL STORE ITEMS',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 2,
-                                  color: Colors.orange,
-                                ),
+                                _selectedSegmentName != null ? _selectedSegmentName!.toUpperCase() : 'ALL STORE ITEMS',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.orange),
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 _selectedSegmentName != null
                                     ? 'Explore categories & items under $_selectedSegmentName'
                                     : 'Explore all available store items below',
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w400,
-                                ),
+                                style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w400),
                               ),
                             ],
                           ),
@@ -583,43 +510,29 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             ),
                             icon: const Icon(Icons.open_in_new, size: 14),
-                            label: const Text(
-                              'Open Store Page',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                            ),
+                            label: const Text('Open Store Page', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                           ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 30),
 
-                  // ALL items view
+                  // Fixed handling with active filtering joins for items and active categories
                   _selectedSegmentId == null
                       ? FutureBuilder<List<Map<String, dynamic>>>(
                     future: _supabase
                         .from('items')
-                        .select(
-                        '*, categories(id, name, is_active, segment_id, segments(id, name, is_active, is_available))')
-                        .limit(60),
+                        .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
+                        .limit(50),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(40),
-                            child: CircularProgressIndicator(color: Colors.orange),
-                          ),
-                        );
+                        return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: Colors.orange)));
                       }
                       final allItems = snapshot.data ?? [];
                       if (allItems.isEmpty) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Center(
-                            child: Text(
-                              'No items available in the store yet.',
-                              style: TextStyle(color: Colors.grey, fontSize: 13),
-                            ),
-                          ),
+                          child: Center(child: Text('No items available in the store yet.', style: TextStyle(color: Colors.grey, fontSize: 13))),
                         );
                       }
 
@@ -642,23 +555,14 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                       : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Direct items (no category) – e.g. MunchBox style segments
+                      // 1. Load items directly attached to this segment (for category-less segments like MunchBox)
                       FutureBuilder<List<Map<String, dynamic>>>(
                         future: _supabase
                             .from('items')
-                            .select(
-                            '*, categories(id, name, is_active, segment_id, segments(id, name, is_active, is_available))')
+                            .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
                             .eq('segment_id', _selectedSegmentId!)
-                            .filter('category_id', 'is', null)
-                            .order('name', ascending: true),
+                            .filter('category_id', 'is', null),
                         builder: (context, directItemSnapshot) {
-                          if (directItemSnapshot.connectionState == ConnectionState.waiting) {
-                            return const Padding(
-                              padding: EdgeInsets.all(20),
-                              child: Center(child: CircularProgressIndicator(color: Colors.orange)),
-                            );
-                          }
-
                           final directItems = directItemSnapshot.data ?? [];
                           if (directItems.isEmpty) return const SizedBox.shrink();
 
@@ -666,15 +570,8 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _selectedSegmentName != null
-                                    ? _selectedSegmentName!.toUpperCase()
-                                    : 'ITEMS',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.5,
-                                  color: Colors.orange,
-                                ),
+                                _selectedSegmentName != null ? _selectedSegmentName!.toUpperCase() : 'ITEMS',
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.orange),
                               ),
                               const SizedBox(height: 12),
                               GridView.builder(
@@ -696,23 +593,17 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                           );
                         },
                       ),
-
-                      // Categories + their items
+                      // 2. Load categories and their items for this segment (for standard multi-category segments)
                       FutureBuilder<List<Map<String, dynamic>>>(
                         future: _supabase
                             .from('categories')
-                            .select('*, segments(id, name, is_active, is_available)')
+                            .select('*, segments!inner(id, name, is_active)')
                             .eq('segment_id', _selectedSegmentId!)
                             .eq('is_active', true)
-                            .order('name', ascending: true),
+                            .eq('segments.is_active', true),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(20),
-                                child: CircularProgressIndicator(color: Colors.orange),
-                              ),
-                            );
+                            return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Colors.orange)));
                           }
 
                           final categories = snapshot.data ?? [];
@@ -730,10 +621,8 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                               return FutureBuilder<List<Map<String, dynamic>>>(
                                 future: _supabase
                                     .from('items')
-                                    .select(
-                                    '*, categories(id, name, is_active, segment_id, segments(id, name, is_active, is_available))')
-                                    .eq('category_id', catId)
-                                    .order('name', ascending: true),
+                                    .select('*, categories(id, name, is_active, segment_id, segments(id, name, is_active))')
+                                    .eq('category_id', catId),
                                 builder: (context, catItemSnapshot) {
                                   final catItems = catItemSnapshot.data ?? [];
                                   if (catItems.isEmpty) return const SizedBox.shrink();
@@ -743,12 +632,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                                     children: [
                                       Text(
                                         catName.toUpperCase(),
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 1.5,
-                                          color: Colors.orange,
-                                        ),
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.orange),
                                       ),
                                       const SizedBox(height: 12),
                                       GridView.builder(
@@ -780,7 +664,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
               ),
             ),
 
-            // Footer
+            // 4. Clean Footer
             Container(
               color: const Color(0xFF111111),
               padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 32),
@@ -833,12 +717,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                       alignment: Alignment.center,
                       child: const Text(
                         'CLOSED',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
                       ),
                     ),
                 ],
@@ -854,21 +733,12 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   item['name'] ?? 'Item',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                    color: Colors.black87,
-                    height: 1.2,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Colors.black87, height: 1.2),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '₦${price.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    color: Colors.orange,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange),
                 ),
                 if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -876,11 +746,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                     'Size/Age: $sizesOrAges',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500),
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -897,10 +763,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                     ),
                     onPressed: () => _incrementCart(item),
-                    child: const Text(
-                      'Add to Cart',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
+                    child: const Text('Add to Cart', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 )
                     : Row(
@@ -914,10 +777,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Text(
-                        '$count',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
+                      child: Text('$count', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     ),
                     IconButton(
                       constraints: const BoxConstraints(),
@@ -930,14 +790,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                     : const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 4.0),
-                    child: Text(
-                      'Unavailable',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: Text('Unavailable', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
