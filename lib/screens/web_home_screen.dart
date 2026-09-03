@@ -394,7 +394,6 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                       SizedBox(
                         height: 110,
                         child: FutureBuilder<List<Map<String, dynamic>>>(
-                          // FIXED: is_available instead of is_active
                           future: _supabase
                               .from('segments')
                               .select()
@@ -765,7 +764,7 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
     final count = cart.getQuantity(itemId);
     final bool available = _isItemAvailable(item);
     final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
-    final String? sizesOrAges = item['sizes_or_ages']?.toString();
+    final String? description = item['description']?.toString();
 
     return Container(
       decoration: BoxDecoration(
@@ -818,10 +817,10 @@ class _WebHomeScreenState extends State<WebHomeScreen> {
                   '₦${price.toStringAsFixed(2)}',
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange),
                 ),
-                if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                if (description != null && description.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
-                    'Size/Age: $sizesOrAges',
+                    'Description: $description',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500),

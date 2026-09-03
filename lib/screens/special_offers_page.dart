@@ -182,7 +182,7 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
                 final itemId = item['id'].toString();
                 final count = cart.getQuantity(itemId);
                 final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
-                final String? sizesOrAges = item['sizes_or_ages'];
+                final String? description = item['description'];
 
                 // Check active/available state from items table toggle
                 final bool isAvailable = _isItemAvailable(item);
@@ -243,10 +243,10 @@ class _SpecialOffersPageState extends State<SpecialOffersPage> {
                               '₦${price.toStringAsFixed(0)}',
                               style: const TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
                             ),
-                            if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                            if (description != null && description.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
-                                'Size/Age: $sizesOrAges',
+                                'Description: $description',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500),

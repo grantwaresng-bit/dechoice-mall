@@ -1,3 +1,4 @@
+// lib/screens/cart_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
@@ -121,7 +122,7 @@ class CartScreen extends StatelessWidget {
                               const Text('SUBTOTAL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: Color(0xFF666666))),
                               Text(
                                 '₦${cart.totalAmount.toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Color(0xFFF28C00)), // Highlighted brand subtotal amount
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Color(0xFFF28C00)),
                               ),
                             ],
                           ),
@@ -130,7 +131,7 @@ class CartScreen extends StatelessWidget {
                             width: double.infinity,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFF28C00), // Main CTA
+                                backgroundColor: const Color(0xFFF28C00),
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(vertical: 18),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
@@ -171,9 +172,9 @@ class CartScreen extends StatelessWidget {
             ),
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.white,
-                border: Border(top: BorderSide(color: const Color(0xFFDDDDDD), width: 1)),
+                border: Border(top: BorderSide(color: Color(0xFFDDDDDD), width: 1)),
               ),
               child: Column(
                 children: [
@@ -253,7 +254,7 @@ class CartScreen extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                     letterSpacing: 0.5,
-                    color: Color(0xFF1E1E1E), // Dark charcoal item title
+                    color: Color(0xFF1E1E1E),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -262,7 +263,7 @@ class CartScreen extends StatelessWidget {
                 Text(
                   '₦${cartItem.price}',
                   style: const TextStyle(
-                    color: Color(0xFF666666), // Medium grey item price
+                    color: Color(0xFF666666),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.5,

@@ -122,7 +122,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     final String itemId = item['id'].toString();
     final String itemName = item['name'] ?? '';
     final String itemImage = item['image_url'] ?? '';
-    final String? sizesOrAges = item['sizes_or_ages']?.toString();
+    final String? description = item['description']?.toString();
 
     showDialog(
       context: context,
@@ -165,15 +165,20 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                       ),
                     ],
                   ),
-                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                  if (description != null && description.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Size/Age:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
-                        Text(
-                          sizesOrAges,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E1E1E)),
+                        const Text('Description:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                        Flexible(
+                          child: Text(
+                            description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E1E1E)),
+                          ),
                         ),
                       ],
                     ),
@@ -553,7 +558,6 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                         itemCount: categories.length,
                         itemBuilder: (context, index) {
                           final category = categories[index];
-                          // Categories currently have no is_available column → always active
                           const bool isCategoryActive = true;
 
                           return GestureDetector(
@@ -624,7 +628,7 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
     final itemName = item['name'] ?? '';
     final itemPrice = (item['price'] as num? ?? 0).toDouble();
     final itemImage = item['image_url'] ?? '';
-    final String? sizesOrAges = item['sizes_or_ages']?.toString();
+    final String? description = item['description']?.toString();
 
     return GestureDetector(
       onTap: () => _showAddToCartDialog(context, item, canOrder),
@@ -684,10 +688,10 @@ class _SegmentDetailScreenState extends State<SegmentDetailScreen> {
                       fontSize: 12,
                     ),
                   ),
-                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                  if (description != null && description.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      'Size/Age: $sizesOrAges',
+                      'Description: $description',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),
@@ -869,7 +873,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
     final double price = (item['price'] as num? ?? 0).toDouble();
     final String itemName = item['name'] ?? '';
     final String itemImage = item['image_url'] ?? '';
-    final String? sizesOrAges = item['sizes_or_ages']?.toString();
+    final String? description = item['description']?.toString();
     final String itemId = item['id'].toString();
 
     showDialog(
@@ -913,15 +917,20 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                       ),
                     ],
                   ),
-                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                  if (description != null && description.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Size/Age:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
-                        Text(
-                          sizesOrAges,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E1E1E)),
+                        const Text('Description:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                        Flexible(
+                          child: Text(
+                            description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E1E1E)),
+                          ),
                         ),
                       ],
                     ),
@@ -1056,7 +1065,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                 final itemName = item['name'] ?? '';
                 final itemPrice = (item['price'] as num? ?? 0).toDouble();
                 final itemImage = item['image_url'] ?? '';
-                final String? sizesOrAges = item['sizes_or_ages']?.toString();
+                final String? description = item['description']?.toString();
 
                 return GestureDetector(
                   onTap: () => _showAddToCartDialog(context, item),
@@ -1116,10 +1125,10 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                   fontSize: 12,
                                 ),
                               ),
-                              if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                              if (description != null && description.isNotEmpty) ...[
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Size/Age: $sizesOrAges',
+                                  'Description: $description',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w500),

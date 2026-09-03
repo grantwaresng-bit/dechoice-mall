@@ -82,7 +82,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
     int quantity = 1;
     final double price = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
-    final String? sizesOrAges = item['sizes_or_ages']?.toString();
+    // ---------- FIXED: use description instead of sizes_or_ages ----------
+    final String? description = item['description']?.toString();
 
     showDialog(
       context: context,
@@ -132,18 +133,23 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       ),
                     ],
                   ),
-                  if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+                  if (description != null && description.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Size/Age:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
-                        Text(
-                          sizesOrAges,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            color: Color(0xFF1E1E1E),
+                        const Text('Description:', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                        Flexible(
+                          child: Text(
+                            description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              color: Color(0xFF1E1E1E),
+                            ),
                           ),
                         ),
                       ],
@@ -355,7 +361,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Widget _buildResultTile(BuildContext context, Map<String, dynamic> item) {
     final bool available = _isItemAvailable(item);
-    final String? sizesOrAges = item['sizes_or_ages']?.toString();
+    // ---------- FIXED: use description instead of sizes_or_ages ----------
+    final String? description = item['description']?.toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -421,10 +428,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              if (sizesOrAges != null && sizesOrAges.isNotEmpty) ...[
+              if (description != null && description.isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(
-                  'Size/Age: $sizesOrAges',
+                  'Description: $description',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.grey,
                     fontSize: 11,
