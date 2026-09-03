@@ -1,6 +1,6 @@
-# dechoice_mall
+# dechoice mall
 
-A new Flutter project.
+Dechoice Mall Mobile App.
 
 ## Getting Started
 
